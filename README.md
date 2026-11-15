@@ -2,7 +2,7 @@
 
 Простой статический редактор недельного графика поваров. Работает без сервера, базы данных и регистрации.
 
-Открыть сайт: https://99jrzwn8pb-droid.github.io/lesnoy-kitchen/
+Открыть сайт: https://99jrzwn8pb-droid.github.io/lesnoy-kitchen-/
 
 ## Как пользоваться
 
