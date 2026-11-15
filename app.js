@@ -90,16 +90,17 @@
     try { setWeek(C.addDays(state.selectedWeek,days)); }
     catch (_) { toast('Достигнута граница календаря: 1900–2199 годы.'); }
   }
-  function applyShift(personId, day, shiftId) {
-    if (row(personId)[day] === shiftId) return;
+  function applyShift(personId, day, shiftId, message) {
+    if (row(personId)[day] === shiftId) return true;
     const scrollLeft = $('table-scroll').scrollLeft, scrollTop = $('table-scroll').scrollTop;
-    commit((next) => {
+    const applied = commit((next) => {
       const week = next.weeks[next.selectedWeek] ||= {};
       const values = week[personId] ||= Array(7).fill('');
       values[day] = shiftId;
-    });
+    },message);
     focusCell(personId,day,false);
     $('table-scroll').scrollLeft = scrollLeft; $('table-scroll').scrollTop = scrollTop;
+    return applied;
   }
   function focusCell(personId,day,scroll = true) {
     const button = $('schedule-body').querySelector(`[data-person="${personId}"][data-day="${day}"]`);
@@ -118,8 +119,8 @@
     $('week-date').value = state.selectedWeek;
     $('undo').disabled = !history.length || externalChange;
     $('edit-mode').setAttribute('aria-pressed',String(editMode));
-    $('mode-hint').textContent = editMode ? 'Нажмите ячейку, чтобы выбрать или задать смену' : 'Выберите смену и нажимайте ячейки';
-    $('shift-palette').innerHTML = state.shifts.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Очистить ячейки">⌫ Очистить</button>`;
+    $('mode-hint').textContent = editMode ? 'Нажмите ячейку и задайте время смены' : brush === '' ? 'Нажимайте смены, которые нужно удалить' : 'Нажмите заполненную ячейку, чтобы изменить или удалить смену';
+    $('shift-palette').innerHTML = state.shifts.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Удалять смены нажатием на ячейку">⌫ Удалить смену</button>`;
     const dates = C.weekDates(state.selectedWeek);
     $('schedule-head').innerHTML = '<tr><th class="employee-header" scope="col">Сотрудник</th><th scope="col" class="phone-header">Телефон</th>' + dates.map((date,i) => `<th scope="col" class="${[4,5].includes(i)?'weekend':''}"><span class="day-name">${['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'][i]}</span><span class="day-date">${dateLabel(date,{day:'2-digit',month:'2-digit'})}</span></th>`).join('') + '</tr>';
     let index = 0;
@@ -144,8 +145,8 @@
     $('dialog-body').innerHTML = content;
     if (!dialog.open) dialog.showModal();
     if (setup) setup($('dialog-body'));
-    const first = $('dialog-body').querySelector('input:not([type="checkbox"]),select');
-    if (first) setTimeout(() => first.focus({preventScroll:true}),0);
+    const first = $('dialog-body').querySelector('input:not([type="checkbox"]):not([type="time"]),select');
+    if (first && !first.closest('details:not([open])')) setTimeout(() => first.focus({preventScroll:true}),0);
   }
   function closeModal() { exportSequence++; dialog.close(); }
   function formError(form, error) { form.querySelector('.form-error').textContent = error; }
@@ -197,7 +198,7 @@
   }
   function shiftEditor(shiftId) {
     const shift = shiftById(shiftId);
-    modal(shift ? 'Редактировать смену' : 'Новая смена',`<form><div class="form-grid"><label class="field">Время или обозначение<input name="label" required maxlength="24" value="${esc(shift?.label || '')}" placeholder="Например: 09–21" autocomplete="off"></label><label class="field">Цвет<input name="color" type="color" value="${shift?.color || '#e6eee6'}"></label></div><p class="dialog-note">Удалить можно только неиспользуемую смену. Для отдельной ячейки выберите «Своя смена» в её редакторе.</p><p class="form-error" role="alert"></p><div class="form-actions">${shift?'<button type="button" id="delete-shift" class="button subtle danger">Удалить</button>':''}<button type="button" class="button" id="back-shifts">Назад</button><button type="submit" class="button primary">Сохранить</button></div></form>`,(body) => {
+    modal(shift ? 'Редактировать смену' : 'Новая смена',`<form><div class="form-grid"><label class="field">Время или обозначение<input name="label" required maxlength="24" value="${esc(shift?.label || '')}" placeholder="Например: 09–21" autocomplete="off"></label><label class="field">Цвет<input name="color" type="color" value="${shift?.color || '#e6eee6'}"></label></div><p class="dialog-note">Удалить можно только неиспользуемый вариант смены. Чтобы изменить время отдельной смены или удалить её из графика, нажмите заполненную ячейку.</p><p class="form-error" role="alert"></p><div class="form-actions">${shift?'<button type="button" id="delete-shift" class="button subtle danger">Удалить</button>':''}<button type="button" class="button" id="back-shifts">Назад</button><button type="submit" class="button primary">Сохранить</button></div></form>`,(body) => {
       const form = body.querySelector('form');
       body.querySelector('#back-shifts').onclick = shiftList;
       form.onsubmit = (event) => { event.preventDefault(); const data = new FormData(form); const label = String(data.get('label')).trim();
@@ -213,21 +214,56 @@
       });
     });
   }
+  function intervalFromLabel(label) {
+    const match = String(label || '').match(/^(\d{1,2})(?::(\d{2}))?\s*[-–—−]\s*(\d{1,2})(?::(\d{2}))?$/);
+    if (!match) return null;
+    const start = match[1].padStart(2,'0') + ':' + (match[2] || '00');
+    const end = match[3].padStart(2,'0') + ':' + (match[4] || '00');
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(start) && /^([01]\d|2[0-3]):[0-5]\d$/.test(end) ? {start,end} : null;
+  }
   function cellEditor(personId,day) {
     const person = state.employees.find((p) => p.id === personId);
     const current = row(personId)[day];
-    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${state.shifts.map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}<button class="shift-chip" data-pick-shift="" aria-pressed="${!current}">⌫ Очистить</button></div><form style="margin-top:22px"><label class="field">Своя смена для этой ячейки<input name="label" maxlength="24" required placeholder="Например: 11:00–23:00" autocomplete="off"></label><p class="dialog-note">Новое обозначение также появится в панели смен.</p><p class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="button" data-close>Закрыть</button><button type="submit" class="button primary">Применить</button></div></form>`,(body) => {
-      body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { applyShift(personId,day,b.dataset.pickShift); closeModal(); }; });
-      const form = body.querySelector('form');
-      form.onsubmit = (event) => { event.preventDefault(); const label = String(new FormData(form).get('label')).trim();
-        if (!label) { formError(form,'Введите время или обозначение'); return; }
-        const existing = state.shifts.find((s) => s.label.toLocaleLowerCase('ru-RU') === label.toLocaleLowerCase('ru-RU'));
+    const interval = intervalFromLabel(shiftById(current)?.label) || (!current ? intervalFromLabel(shiftById(brush)?.label) : null);
+    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${state.shifts.map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
+      body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { if (applyShift(personId,day,b.dataset.pickShift,'Смена применена')) closeModal(); }; });
+      body.querySelector('#delete-cell-shift').onclick = () => { if (applyShift(personId,day,'','Смена удалена')) closeModal(); };
+      const form = body.querySelector('#interval-form');
+      const customForm = body.querySelector('#custom-shift-form');
+      function saveLabel(label, sourceForm, times) {
+        const existing = state.shifts.find((s) => {
+          if (s.label.toLocaleLowerCase('ru-RU') === label.toLocaleLowerCase('ru-RU')) return true;
+          const known = times ? intervalFromLabel(s.label) : null;
+          return known && known.start === times.start && known.end === times.end;
+        });
+        if (!existing && state.shifts.length >= 30) { formError(sourceForm,'Уже есть 30 вариантов смен. Удалите неиспользуемый вариант через «Настроить» или выберите готовую смену.'); return; }
+        if (existing) { if (applyShift(personId,day,existing.id,'Время смены сохранено')) closeModal(); return; }
         if (commit((next) => {
-          const shiftId = existing?.id || id('shift');
-          if (!existing) next.shifts.push({id:shiftId,label,color:'#e6eee6'});
+          const shiftId = id('shift');
+          next.shifts.push({id:shiftId,label,color:'#e6eee6'});
           const week = next.weeks[next.selectedWeek] ||= {}; (week[personId] ||= Array(7).fill(''))[day] = shiftId;
-        },'Смена применена')) closeModal();
-      };
+        },'Время смены сохранено')) closeModal();
+      }
+      function intervalValues() {
+        const start = form.elements.namedItem('start').value;
+        const end = form.elements.namedItem('end').value;
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(end)) return {error:'Укажите начало и окончание смены.'};
+        if (start === end) return {error:'Начало и окончание должны различаться.'};
+        const minutes = (value) => Number(value.slice(0,2)) * 60 + Number(value.slice(3));
+        const duration = (minutes(end) - minutes(start) + 1440) % 1440;
+        return {start,end,duration,overnight:minutes(end) < minutes(start)};
+      }
+      function updateSummary() {
+        formError(form,'');
+        const times = intervalValues();
+        const duration = times.error ? '' : `${Math.floor(times.duration / 60)} ч${times.duration % 60 ? ' ' + times.duration % 60 + ' мин' : ''}`;
+        body.querySelector('#interval-summary').textContent = times.error || `Длительность: ${duration}${times.overnight ? '. Окончание — ' + times.end + ' следующего дня.' : '.'}`;
+      }
+      form.oninput = updateSummary;
+      form.onchange = updateSummary;
+      form.onsubmit = (event) => { event.preventDefault(); const times = intervalValues(); if (times.error) { formError(form,times.error); return; } saveLabel(times.start + '–' + times.end,form,times); };
+      customForm.onsubmit = (event) => { event.preventDefault(); const label = String(new FormData(customForm).get('label')).trim(); if (!label) { formError(customForm,'Введите обозначение смены'); return; } saveLabel(label,customForm); };
+      updateSummary();
     });
   }
   function undo() {
@@ -292,7 +328,7 @@
     });
   }
   function help() {
-    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Для другого времени включите «Редактировать ячейки».<br>4. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>5. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>6. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Применить выбранную смену</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Очистить ячейку</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">На iPhone прокручивайте таблицу вбок. Имена остаются на месте. Нажмите телефон, чтобы позвонить.</p>`);
+    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">На iPhone прокручивайте таблицу вбок. Имена остаются на месте. Нажмите телефон, чтобы позвонить.</p>`);
   }
   function pngDialog() {
     modal('График для команды',`<label class="check-label"><input id="png-phones" type="checkbox" checked>Показывать телефоны на картинке</label><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
@@ -357,7 +393,7 @@
   $('edit-mode').onclick = () => { editMode = !editMode; render(); };
   $('schedule-body').onclick = (event) => {
     const b = event.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (editMode) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
+    if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (editMode || (brush !== '' && row(b.dataset.person)[day])) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
     if (b.hasAttribute('data-employee')) employeeEditor(b.dataset.employee);
     if (b.hasAttribute('data-department')) departmentEditor(b.dataset.department);
     if (b.hasAttribute('data-add-department')) employeeEditor(null,b.dataset.addDepartment);
