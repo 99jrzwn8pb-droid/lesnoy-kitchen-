@@ -18,6 +18,7 @@
   let externalChange = false;
   let exportURL;
   let exportSequence = 0;
+  let scheduleViewport = null;
   const dialog = $('editor-dialog');
   const dateLabel = (date, options) => new Date(date + 'T12:00:00Z').toLocaleDateString('ru-RU', {...options, timeZone:'UTC'});
   const id = (prefix) => prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10));
@@ -106,7 +107,10 @@
   function focusCell(personId,day,scroll = true) {
     const button = $('schedule-body').querySelector(`[data-person="${personId}"][data-day="${day}"]`);
     button?.focus({preventScroll:true});
-    if (scroll) button?.scrollIntoView({block:'nearest',inline:'nearest'});
+    if (scroll && button) {
+      if (scheduleViewport) scheduleViewport.reveal(button);
+      else button.scrollIntoView({block:'nearest',inline:'nearest'});
+    }
   }
   function weekNumber(date) {
     const d = new Date(date + 'T00:00:00Z');
@@ -136,6 +140,24 @@
     }).join('') + (!state.employees.length ? '<tr class="empty-guide"><td colspan="16"><strong>Добавьте команду</strong><p>Добавьте сотрудников или импортируйте файл команды через меню «Данные». Затем выберите смену сверху и нажимайте пустые ячейки.</p><button class="button primary" data-action="first-employee">＋ Добавить сотрудника</button></td></tr>' : '');
     $('schedule-foot').replaceChildren();
     $('team-count').textContent = state.employees.length + ' чел. / ' + state.departments.length + ' цеха';
+    scheduleViewport?.refresh();
+  }
+  function initScheduleViewport() {
+    if (!window.LesnoyViewport) return;
+    document.documentElement.classList.add('sheet-app');
+    const viewport = $('table-scroll');
+    viewport.classList.add('canvas-viewport');
+    scheduleViewport = window.LesnoyViewport.create({
+      viewport,surface:$('schedule-surface'),content:$('schedule'),
+      onScale:(view) => { $('zoom-level').textContent = view.percent + '%'; }
+    });
+    $('zoom-controls').hidden = false;
+    $('zoom-in').onclick = () => scheduleViewport.zoomBy(1.2);
+    $('zoom-out').onclick = () => scheduleViewport.zoomBy(1 / 1.2);
+    $('zoom-fit').onclick = () => scheduleViewport.fit();
+    viewport.addEventListener('click',(event) => {
+      if (scheduleViewport.isClickBlocked()) { event.preventDefault(); event.stopImmediatePropagation(); }
+    },true);
   }
 
   function modal(title, content, setup) {
@@ -347,7 +369,7 @@
     });
   }
   function help() {
-    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">На iPhone прокручивайте таблицу вбок. Имена остаются на месте. Нажмите телефон, чтобы позвонить.</p>`);
+    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">Страница закреплена. Сжимайте два пальца для уменьшения графика, разводите для увеличения. Одним пальцем перемещайте лист. Имена, даты и смены масштабируются вместе. Кнопка «Весь график» возвращает общий вид. На Mac также работают трекпад и кнопки «−»/«+». Нажмите телефон, чтобы позвонить.</p>`);
   }
   function pngDialog() {
     modal('График для команды',`<label class="check-label"><input id="png-phones" type="checkbox" checked>Показывать телефоны на картинке</label><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
@@ -456,6 +478,7 @@
   });
   window.addEventListener('hashchange',importRosterLink);
   render();
+  initScheduleViewport();
   if (loaded.error) {
     $('save-status').textContent = loaded.recovered ? 'Восстановлено из копии' : 'Проверьте данные';
     $('save-status').classList.add('error');
