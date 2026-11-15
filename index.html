@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#244c3c">
+  <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
+  <title>ЛЕСНОЙ | График кухни</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="core.js" defer></script>
+  <script src="png.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./index.html" aria-label="ЛЕСНОЙ — график кухни">
+      <svg class="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 3 6 17h6l-7 8h10v5h2v-5h10l-7-8h6L16 3Z" fill="currentColor"/></svg>
+      <strong>ЛЕСНОЙ</strong><span class="brand-divider"></span><span>График кухни</span>
+    </a>
+    <div class="top-actions">
+      <span id="save-status" class="save-status" role="status">Проверка сохранения…</span>
+      <button id="data-menu" class="button subtle" aria-label="Данные и помощь" title="Данные и помощь">⋯ <span>Данные</span></button>
+    </div>
+  </header>
+
+  <main>
+    <div id="storage-warning" class="warning" role="alert" hidden></div>
+    <section class="heading-row" aria-label="Управление графиком">
+      <div><p class="eyebrow">КОМАНДА НА СВОИХ МЕСТАХ</p><h1>График кухни<span class="title-dot">.</span></h1></div>
+      <button id="export-png" class="button primary"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 12v5h14v-5"/></svg>Скачать PNG</button>
+    </section>
+
+    <section class="schedule-card" aria-label="Недельный график">
+      <div class="week-toolbar">
+        <div class="week-picker">
+          <button id="prev-week" class="button square" aria-label="Предыдущая неделя">‹</button>
+          <div class="week-label"><span class="eyebrow">РАБОЧАЯ НЕДЕЛЯ <span id="week-number"></span></span><label class="date-control"><strong id="week-range"></strong><span aria-hidden="true">⌄</span><input id="week-date" type="date" min="1900-01-01" max="2199-12-29" aria-label="Выбрать любую дату нужной недели"></label></div>
+          <button id="next-week" class="button square" aria-label="Следующая неделя">›</button>
+          <button id="today" class="button subtle small">Текущая</button>
+        </div>
+        <button id="copy-week" class="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6V3h10v11h-3M3 6h11v11H3Z"/></svg>Из прошлой недели</button>
+      </div>
+
+      <div class="paint-toolbar">
+        <span class="toolbar-label">Смена для заполнения</span>
+        <div id="shift-palette" class="palette" role="group" aria-label="Выберите смену, затем нажмите ячейку"></div>
+        <button id="manage-shifts" class="button subtle small" title="Редактировать варианты смен">Настроить</button>
+        <span class="toolbar-divider"></span>
+        <button id="edit-mode" class="button subtle small" aria-pressed="false">Редактировать ячейки</button>
+        <button id="undo" class="button subtle small undo" disabled title="Отменить последнее изменение (⌘Z / Ctrl+Z)">↶ <span>Отменить</span></button>
+      </div>
+
+      <div class="table-hint"><span><span class="hint-dot"></span><span id="mode-hint">Выберите смену и нажимайте ячейки</span></span><span class="scroll-hint">Прокрутите таблицу вбок →</span></div>
+      <div id="table-scroll" class="table-scroll" tabindex="0" aria-label="Таблица графика, прокручивается по горизонтали">
+        <table id="schedule"><caption class="sr-only">График работы сотрудников по дням недели</caption><colgroup><col class="person-col"><col class="phone-col"><col span="7" class="day-col"></colgroup><thead id="schedule-head"></thead><tbody id="schedule-body"></tbody><tfoot id="schedule-foot"></tfoot></table>
+      </div>
+      <div class="table-bottom"><div class="roster-actions"><button id="add-employee" class="button subtle small">＋ Сотрудник</button><button id="manage-departments" class="button subtle small">Цеха</button></div><span class="weekend-note"><i></i> Пятница и суббота</span><span id="team-count"></span></div>
+    </section>
+
+    <footer class="page-footer"><span>Только на этом устройстве <span class="footer-separator">·</span> Без регистрации</span><button id="backup-shortcut" class="text-button">Сохранить резервную копию ↗</button></footer>
+    <p class="privacy-note">Данные хранятся в этом браузере и не синхронизируются между iPhone и Mac. Для переноса используйте JSON.</p>
+    <noscript><div class="warning">Для работы редактора включите JavaScript в настройках браузера.</div></noscript>
+  </main>
+
+  <dialog id="editor-dialog" aria-labelledby="dialog-title"><div class="dialog-top"><h2 id="dialog-title"></h2><button id="close-dialog" class="button square subtle" aria-label="Закрыть окно">×</button></div><div id="dialog-body"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <input id="import-file" type="file" accept=".json,application/json" hidden>
+</body>
+</html>

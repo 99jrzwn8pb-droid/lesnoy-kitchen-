@@ -1,0 +1,377 @@
+/* ЛЕСНОЙ. Все данные остаются в браузере. Нет сетевых запросов. */
+(function () {
+  'use strict';
+  const C = window.LesnoyCore;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clone = (s) => JSON.parse(JSON.stringify(s));
+  let storage;
+  try { storage = window.localStorage; } catch (_) { storage = null; }
+  const loaded = C.load(storage);
+  let state = loaded.state;
+  let brush = state.shifts[0]?.id || '';
+  let editMode = false;
+  let history = [];
+  let toastTimer;
+  let dirty = false;
+  let externalChange = false;
+  let exportURL;
+  let exportSequence = 0;
+  const dialog = $('editor-dialog');
+  const dateLabel = (date, options) => new Date(date + 'T12:00:00Z').toLocaleDateString('ru-RU', {...options, timeZone:'UTC'});
+  const id = (prefix) => prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10));
+  const orderedEmployees = () => state.departments.flatMap((dep) => state.employees.filter((p) => p.department === dep.id));
+  const row = (personId) => state.weeks[state.selectedWeek]?.[personId] || Array(7).fill('');
+  const shiftById = (shiftId) => state.shifts.find((s) => s.id === shiftId);
+  const rangeLabel = () => {
+    const dates = C.weekDates(state.selectedWeek);
+    const a = dateLabel(dates[0],{day:'numeric',month:'short'}).replace(' г.','');
+    const b = dateLabel(dates[6],{day:'numeric',month:'short',year:'numeric'}).replace(' г.','');
+    return a + ' — ' + b;
+  };
+
+  function toast(message) {
+    $('toast').textContent = message;
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').hidden = true; },4500);
+  }
+  function showWarning(message, reload = false) {
+    const el = $('storage-warning');
+    el.replaceChildren(document.createTextNode(message));
+    const backup = document.createElement('button');
+    backup.className = 'button small'; backup.textContent = 'Скачать JSON'; backup.onclick = exportJSON; el.append(backup);
+    if (reload) {
+      const button = document.createElement('button'); button.className = 'button small'; button.textContent = 'Загрузить данные из другой вкладки';
+      button.onclick = () => location.reload(); el.append(button);
+    }
+    el.hidden = false;
+  }
+  function persist() {
+    if (externalChange) return false;
+    try {
+      C.save(storage, state);
+      dirty = false;
+      $('save-status').classList.remove('error');
+      $('save-status').textContent = 'Сохранено в браузере';
+      $('save-status').title = 'Последнее сохранение: ' + new Date(state.updatedAt).toLocaleTimeString('ru-RU');
+      $('storage-warning').hidden = true;
+      return true;
+    } catch (error) {
+      dirty = true;
+      $('save-status').textContent = 'Не сохранено';
+      $('save-status').classList.add('error');
+      showWarning('Браузер не сохранил изменения. Они доступны до закрытия страницы. Скачайте JSON, чтобы не потерять данные. ' + error.message);
+      return false;
+    }
+  }
+  function commit(change, message, remember = true) {
+    if (externalChange) { toast('График изменён в другой вкладке. Сначала загрузите её данные.'); return false; }
+    const before = clone(state);
+    const next = clone(state);
+    try {
+      change(next);
+      next.updatedAt = new Date().toISOString();
+      state = C.validateState(next);
+    } catch (error) { toast(error.message); return false; }
+    if (remember) { history.push(before); if (history.length > 20) history.shift(); }
+    const saved = persist(); render();
+    if (!saved) toast('Изменения применены, но не сохранены. Скачайте JSON.');
+    else if (message) toast(message);
+    return true;
+  }
+  function setWeek(value) {
+    let week;
+    try { week = C.monday(value); } catch (_) { toast('Выберите корректную дату'); return; }
+    if (week === state.selectedWeek) return;
+    commit((next) => { next.selectedWeek = week; },null,false);
+  }
+  function moveWeek(days) {
+    try { setWeek(C.addDays(state.selectedWeek,days)); }
+    catch (_) { toast('Достигнута граница календаря: 1900–2199 годы.'); }
+  }
+  function applyShift(personId, day, shiftId) {
+    if (row(personId)[day] === shiftId) return;
+    const scrollLeft = $('table-scroll').scrollLeft, scrollTop = $('table-scroll').scrollTop;
+    commit((next) => {
+      const week = next.weeks[next.selectedWeek] ||= {};
+      const values = week[personId] ||= Array(7).fill('');
+      values[day] = shiftId;
+    });
+    focusCell(personId,day,false);
+    $('table-scroll').scrollLeft = scrollLeft; $('table-scroll').scrollTop = scrollTop;
+  }
+  function focusCell(personId,day,scroll = true) {
+    const button = $('schedule-body').querySelector(`[data-person="${personId}"][data-day="${day}"]`);
+    button?.focus({preventScroll:true});
+    if (scroll) button?.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+  function weekNumber(date) {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 3);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    return Math.ceil((((d-yearStart)/86400000)+1)/7);
+  }
+  function render() {
+    if (!state.shifts.some((s) => s.id === brush)) brush = brush === '' ? '' : (state.shifts[0]?.id || '');
+    $('week-range').textContent = rangeLabel(); $('week-number').textContent = ' / ' + String(weekNumber(state.selectedWeek)).padStart(2,'0');
+    $('week-date').value = state.selectedWeek;
+    $('undo').disabled = !history.length || externalChange;
+    $('edit-mode').setAttribute('aria-pressed',String(editMode));
+    $('mode-hint').textContent = editMode ? 'Нажмите ячейку, чтобы выбрать или задать смену' : 'Выберите смену и нажимайте ячейки';
+    $('shift-palette').innerHTML = state.shifts.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Очистить ячейки">⌫ Очистить</button>`;
+    const dates = C.weekDates(state.selectedWeek);
+    $('schedule-head').innerHTML = '<tr><th class="employee-header" scope="col">Сотрудник</th><th scope="col" class="phone-header">Телефон</th>' + dates.map((date,i) => `<th scope="col" class="${[4,5].includes(i)?'weekend':''}"><span class="day-name">${['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'][i]}</span><span class="day-date">${dateLabel(date,{day:'2-digit',month:'2-digit'})}</span></th>`).join('') + '</tr>';
+    let index = 0;
+    $('schedule-body').innerHTML = state.departments.map((dep) => {
+      const people = state.employees.filter((p) => p.department === dep.id);
+      return `<tr class="department-row"><th colspan="9" scope="rowgroup"><button data-department="${esc(dep.id)}" title="Редактировать цех">${esc(dep.name.toLocaleUpperCase('ru-RU'))}<span>${people.length} чел.</span></button></th></tr>` + (people.length ? people.map((p) => {
+        index++;
+        return `<tr><th scope="row" class="employee-cell"><button class="person-button" data-employee="${esc(p.id)}" title="Редактировать сотрудника"><span class="employee-index">${String(index).padStart(2,'0')}</span>${esc(p.name)}</button></th><td class="phone-cell">${p.phone ? `<a href="tel:${esc(p.phone.replace(/[^+\d]/g,''))}">${esc(p.phone)}</a>` : '—'}</td>` + row(p.id).map((shiftId,day) => {
+          const s = shiftById(shiftId);
+          return `<td class="shift-cell ${[4,5].includes(day)?'weekend':''}" data-filled="${!!s}"${s?` style="--cell-color:${s.color}"`:''}><button class="cell-button" data-person="${esc(p.id)}" data-day="${day}" aria-label="${esc(p.name)}, ${esc(dateLabel(dates[day],{weekday:'long',day:'numeric',month:'long'}))}: ${esc(s?.label || 'не заполнено')}">${s?`<i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span>`:'<span class="empty-mark">·</span>'}</button></td>`;
+        }).join('') + '</tr>';
+      }).join('') : `<tr class="empty-department"><td colspan="9"><button class="button subtle small" data-add-department="${esc(dep.id)}">＋ Добавить сотрудника в цех</button></td></tr>`);
+    }).join('') + (!state.employees.length ? '<tr class="empty-guide"><td colspan="9"><strong>Начнём с команды</strong><p>Добавьте сотрудников и выберите смену сверху.<br>Затем заполните график одним нажатием на каждую ячейку.</p><button class="button primary" data-action="first-employee">＋ Добавить сотрудника</button></td></tr>' : '');
+    $('schedule-foot').innerHTML = '<tr class="total-row"><th colspan="2" scope="row">Заполнено ячеек</th>' + dates.map((_,day) => `<td class="${[4,5].includes(day)?'weekend':''}">${state.employees.filter((p) => row(p.id)[day]).length}<span style="font-weight:400;color:#9aa48d"> / ${state.employees.length}</span></td>`).join('') + '</tr>';
+    $('team-count').textContent = state.employees.length + ' чел. / ' + state.departments.length + ' цеха';
+  }
+
+  function modal(title, content, setup) {
+    exportSequence++;
+    if (exportURL) { URL.revokeObjectURL(exportURL); exportURL = null; }
+    $('dialog-title').textContent = title;
+    $('dialog-body').innerHTML = content;
+    if (!dialog.open) dialog.showModal();
+    if (setup) setup($('dialog-body'));
+    const first = $('dialog-body').querySelector('input:not([type="checkbox"]),select');
+    if (first) setTimeout(() => first.focus({preventScroll:true}),0);
+  }
+  function closeModal() { exportSequence++; dialog.close(); }
+  function formError(form, error) { form.querySelector('.form-error').textContent = error; }
+  function employeeEditor(employeeId, departmentId) {
+    const person = state.employees.find((p) => p.id === employeeId);
+    if (!state.departments.length) { departmentEditor(); return; }
+    modal(person ? 'Редактировать сотрудника' : 'Новый сотрудник',`<form id="employee-form"><div class="form-grid"><label class="field">Имя сотрудника<input name="name" maxlength="100" required autocomplete="off" value="${esc(person?.name || '')}" placeholder="Фамилия и имя"></label><label class="field">Телефон<input name="phone" type="tel" maxlength="50" autocomplete="off" value="${esc(person?.phone || '')}" placeholder="Необязательно"></label><label class="field">Цех<select name="department">${state.departments.map((d) => `<option value="${esc(d.id)}" ${d.id === (person?.department || departmentId)?'selected':''}>${esc(d.name)}</option>`).join('')}</select></label></div><p class="form-error" role="alert"></p><div class="form-actions">${person?'<button type="button" id="delete-employee" class="button subtle danger">Удалить</button>':''}<button type="button" class="button" data-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div></form>`,(body) => {
+      const form = body.querySelector('form');
+      form.onsubmit = (event) => {
+        event.preventDefault(); const data = new FormData(form); const name = String(data.get('name')).trim();
+        if (!name) { formError(form,'Укажите имя сотрудника'); return; }
+        if (commit((next) => {
+          const values = {id:person?.id || id('person'),name,phone:String(data.get('phone')).trim(),department:String(data.get('department'))};
+          if (person) Object.assign(next.employees.find((p) => p.id === person.id), values); else next.employees.push(values);
+        },'Сотрудник сохранён')) closeModal();
+      };
+      body.querySelector('#delete-employee')?.addEventListener('click',() => {
+        if (!confirm(`Удалить сотрудника «${person.name}» и его смены во всех неделях? Действие можно отменить кнопкой «Отменить».`)) return;
+        if (commit((next) => { next.employees = next.employees.filter((p) => p.id !== person.id); Object.values(next.weeks).forEach((w) => { delete w[person.id]; }); },'Сотрудник удалён')) closeModal();
+      });
+    });
+  }
+  function departmentList() {
+    modal('Цеха',`<p class="dialog-note">Порядок цехов и сотрудников сохраняется во всех неделях.</p><div>${state.departments.map((d) => `<div class="list-row"><span>${esc(d.name)}</span><button class="button small" data-edit-department="${esc(d.id)}">Изменить</button></div>`).join('')}</div><div class="form-actions"><button class="button primary" id="new-department">＋ Добавить цех</button></div>`,(body) => {
+      body.querySelectorAll('[data-edit-department]').forEach((b) => { b.onclick = () => departmentEditor(b.dataset.editDepartment); });
+      body.querySelector('#new-department').onclick = () => departmentEditor();
+    });
+  }
+  function departmentEditor(departmentId) {
+    const dep = state.departments.find((d) => d.id === departmentId);
+    modal(dep ? 'Редактировать цех' : 'Новый цех',`<form><label class="field">Название цеха<input name="name" required maxlength="80" value="${esc(dep?.name || '')}" autocomplete="off"></label><p class="dialog-note">Название изменится во всех неделях. Удалить можно только пустой цех.</p><p class="form-error" role="alert"></p><div class="form-actions">${dep?'<button type="button" id="delete-department" class="button subtle danger">Удалить</button>':''}<button type="button" class="button" data-close>Отмена</button><button type="submit" class="button primary">Сохранить</button></div></form>`,(body) => {
+      const form = body.querySelector('form');
+      form.onsubmit = (event) => { event.preventDefault(); const name = String(new FormData(form).get('name')).trim();
+        if (!name) { formError(form,'Укажите название цеха'); return; }
+        if (commit((next) => { if (dep) next.departments.find((d) => d.id === dep.id).name = name; else next.departments.push({id:id('dept'),name}); },'Цех сохранён')) departmentList();
+      };
+      body.querySelector('#delete-department')?.addEventListener('click',() => {
+        if (state.employees.some((p) => p.department === dep.id)) { formError(form,'Сначала перенесите сотрудников в другой цех.'); return; }
+        if (!confirm(`Удалить пустой цех «${dep.name}»?`)) return;
+        if (commit((next) => { next.departments = next.departments.filter((d) => d.id !== dep.id); },'Цех удалён')) departmentList();
+      });
+    });
+  }
+  function shiftList() {
+    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${state.shifts.map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
+      body.querySelectorAll('[data-edit-shift]').forEach((b) => { b.onclick = () => shiftEditor(b.dataset.editShift); });
+      body.querySelector('#new-shift').onclick = () => shiftEditor();
+    });
+  }
+  function shiftEditor(shiftId) {
+    const shift = shiftById(shiftId);
+    modal(shift ? 'Редактировать смену' : 'Новая смена',`<form><div class="form-grid"><label class="field">Время или обозначение<input name="label" required maxlength="24" value="${esc(shift?.label || '')}" placeholder="Например: 09–21" autocomplete="off"></label><label class="field">Цвет<input name="color" type="color" value="${shift?.color || '#e6eee6'}"></label></div><p class="dialog-note">Удалить можно только неиспользуемую смену. Для отдельной ячейки выберите «Своя смена» в её редакторе.</p><p class="form-error" role="alert"></p><div class="form-actions">${shift?'<button type="button" id="delete-shift" class="button subtle danger">Удалить</button>':''}<button type="button" class="button" id="back-shifts">Назад</button><button type="submit" class="button primary">Сохранить</button></div></form>`,(body) => {
+      const form = body.querySelector('form');
+      body.querySelector('#back-shifts').onclick = shiftList;
+      form.onsubmit = (event) => { event.preventDefault(); const data = new FormData(form); const label = String(data.get('label')).trim();
+        if (!label) { formError(form,'Укажите обозначение смены'); return; }
+        if (state.shifts.some((s) => s.id !== shift?.id && s.label.toLocaleLowerCase('ru-RU') === label.toLocaleLowerCase('ru-RU'))) { formError(form,'Смена с таким обозначением уже есть'); return; }
+        if (commit((next) => { if (shift) Object.assign(next.shifts.find((s) => s.id === shift.id),{label,color:String(data.get('color'))}); else next.shifts.push({id:id('shift'),label,color:String(data.get('color'))}); },'Смена сохранена')) shiftList();
+      };
+      body.querySelector('#delete-shift')?.addEventListener('click',() => {
+        const used = Object.values(state.weeks).some((w) => Object.values(w).some((r) => r.includes(shift.id)));
+        if (used) { formError(form,'Эта смена уже есть в графике. Сначала замените её в соответствующих неделях.'); return; }
+        if (!confirm(`Удалить вариант «${shift.label}»?`)) return;
+        if (commit((next) => { next.shifts = next.shifts.filter((s) => s.id !== shift.id); },'Смена удалена')) shiftList();
+      });
+    });
+  }
+  function cellEditor(personId,day) {
+    const person = state.employees.find((p) => p.id === personId);
+    const current = row(personId)[day];
+    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${state.shifts.map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}<button class="shift-chip" data-pick-shift="" aria-pressed="${!current}">⌫ Очистить</button></div><form style="margin-top:22px"><label class="field">Своя смена для этой ячейки<input name="label" maxlength="24" required placeholder="Например: 11:00–23:00" autocomplete="off"></label><p class="dialog-note">Новое обозначение также появится в панели смен.</p><p class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="button" data-close>Закрыть</button><button type="submit" class="button primary">Применить</button></div></form>`,(body) => {
+      body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { applyShift(personId,day,b.dataset.pickShift); closeModal(); }; });
+      const form = body.querySelector('form');
+      form.onsubmit = (event) => { event.preventDefault(); const label = String(new FormData(form).get('label')).trim();
+        if (!label) { formError(form,'Введите время или обозначение'); return; }
+        const existing = state.shifts.find((s) => s.label.toLocaleLowerCase('ru-RU') === label.toLocaleLowerCase('ru-RU'));
+        if (commit((next) => {
+          const shiftId = existing?.id || id('shift');
+          if (!existing) next.shifts.push({id:shiftId,label,color:'#e6eee6'});
+          const week = next.weeks[next.selectedWeek] ||= {}; (week[personId] ||= Array(7).fill(''))[day] = shiftId;
+        },'Смена применена')) closeModal();
+      };
+    });
+  }
+  function undo() {
+    if (!history.length || externalChange) return;
+    const previous = history.pop(); previous.selectedWeek = state.selectedWeek; previous.updatedAt = new Date().toISOString();
+    state = previous; const saved = persist(); render(); toast(saved ? 'Последнее изменение отменено' : 'Изменение отменено, но не сохранено. Скачайте JSON.');
+  }
+  function download(blob,filename) {
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),60000);
+  }
+  function exportJSON() {
+    download(new Blob([JSON.stringify(state,null,2)],{type:'application/json;charset=utf-8'}),'lesnoy-backup-' + new Date().toISOString().slice(0,10) + '.json');
+    toast('Резервная копия подготовлена. Храните JSON в личных файлах.');
+  }
+  async function importJSON(file) {
+    if (!file) return;
+    if (file.size > 8*1024*1024) { toast('Файл больше 8 МБ. Выберите резервную копию этого приложения.'); return; }
+    try {
+      const parsed = JSON.parse((await file.text()).replace(/^\uFEFF/,''));
+      const incoming = C.validateState(parsed);
+      if (!confirm(`Импортировать ${incoming.employees.length} сотрудников и ${Object.keys(incoming.weeks).length} недель? Весь текущий график, сотрудники и варианты смен будут заменены. Рекомендуем сначала скачать JSON текущих данных. Замену можно отменить кнопкой «Отменить».`)) return;
+      if (commit((next) => { Object.keys(next).forEach((key) => delete next[key]); Object.assign(next,incoming); },'Резервная копия импортирована')) closeModal();
+    } catch (error) { toast('Импорт не выполнен: ' + (error instanceof SyntaxError ? 'некорректный JSON' : error.message)); }
+  }
+  function dataMenu() {
+    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать резервную копию JSON</button><button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную. Импорт заменяет все данные.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
+      body.querySelector('#json-export').onclick = exportJSON;
+      body.querySelector('#json-import').onclick = () => $('import-file').click();
+      body.querySelector('#help-button').onclick = help;
+    });
+  }
+  function help() {
+    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Для другого времени включите «Редактировать ячейки».<br>4. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>5. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>6. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Применить выбранную смену</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Очистить ячейку</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">На iPhone прокручивайте таблицу вбок. Имена остаются на месте. Нажмите телефон, чтобы позвонить.</p>`);
+  }
+  function pngDialog() {
+    modal('График для команды',`<label class="check-label"><input id="png-phones" type="checkbox" checked>Показывать телефоны на картинке</label><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
+      const checkbox = body.querySelector('#png-phones');
+      const generate = async () => {
+        const seq = ++exportSequence;
+        body.querySelector('#png-save').hidden = true; body.querySelector('#png-share').hidden = true;
+        body.querySelector('#png-preview').hidden = true;
+        body.querySelector('#png-status').textContent = 'Готовим всю таблицу…';
+        try {
+          const result = await window.LesnoyPNG.render(clone(state),state.selectedWeek,{includePhones:checkbox.checked});
+          if (seq !== exportSequence || !dialog.open) return;
+          if (exportURL) URL.revokeObjectURL(exportURL);
+          exportURL = URL.createObjectURL(result.blob);
+          const img = body.querySelector('#png-preview'); img.src = exportURL; img.hidden = false;
+          const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.hidden = false;
+          body.querySelector('#png-status').textContent = `Вся таблица · ${result.width} × ${result.height} px · ${checkbox.checked?'с телефонами':'без телефонов'}`;
+          const shareFile = new File([result.blob],result.filename,{type:'image/png'});
+          const share = body.querySelector('#png-share');
+          let canShare = false;
+          try { canShare = !!navigator.canShare?.({files:[shareFile]}); } catch (_) { /* download remains available */ }
+          share.hidden = !canShare;
+          share.onclick = async () => {
+            try { await navigator.share({files:[shareFile],title:'ЛЕСНОЙ | График кухни'}); }
+            catch (error) { if (error.name !== 'AbortError') toast('Не удалось поделиться. Скачайте PNG или сохраните картинку удержанием.'); }
+          };
+        } catch (error) { if (seq === exportSequence) body.querySelector('#png-status').textContent = 'Не удалось создать PNG. ' + error.message; }
+      };
+      checkbox.onchange = generate; generate();
+    });
+  }
+  function copyPreviousWeek() {
+    let source;
+    try { source = state.weeks[C.previousWeek(state.selectedWeek)]; }
+    catch (_) { toast('Предыдущая неделя за пределами календаря.'); return; }
+    if (!source || !Object.values(source).some((values) => values.some(Boolean))) { toast('В предыдущей неделе пока нет смен'); return; }
+    const filled = Object.values(state.weeks[state.selectedWeek] || {}).some((values) => values.some(Boolean));
+    if (filled && !confirm('Заменить смены выбранной недели графиком предыдущей недели? Сотрудники и телефоны сохранятся. Действие можно отменить.')) return;
+    commit((next) => { next.weeks[next.selectedWeek] = clone(source); },'Смены скопированы из предыдущей недели');
+  }
+  function pasteRange(event) {
+    const target = event.target.closest('[data-person][data-day]');
+    if (!target || dialog.open) return;
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain');
+    if (!text || text.length > 40000) { toast('Нет данных для вставки или диапазон слишком большой'); return; }
+    const grid = text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map((line) => line.split('\t').map((v) => v.trim()));
+    const people = orderedEmployees(); const start = people.findIndex((p) => p.id === target.dataset.person); const day = Number(target.dataset.day);
+    if (start + grid.length > people.length || grid.some((r) => day + r.length > 7)) { toast('Диапазон выходит за пределы таблицы. Выберите другую начальную ячейку.'); return; }
+    const normalize = (s) => s.replace(/[—–−]/g,'-').replace(/\s/g,'').toLocaleLowerCase('ru-RU');
+    const matches = new Map(state.shifts.map((s) => [normalize(s.label),s.id]));
+    const unknown = grid.flat().find((s) => s !== '' && s !== '-' && !matches.has(normalize(s)));
+    if (unknown !== undefined) { toast(`Неизвестная смена «${unknown.slice(0,24)}». Сначала добавьте её в варианты смен.`); return; }
+    commit((next) => {
+      const week = next.weeks[next.selectedWeek] ||= {};
+      grid.forEach((r,offset) => { const values = week[people[start+offset].id] ||= Array(7).fill(''); r.forEach((s,i) => { values[day+i] = matches.get(normalize(s)) || ''; }); });
+    },'Диапазон из Excel вставлен');
+    focusCell(target.dataset.person,day);
+  }
+
+  $('shift-palette').onclick = (event) => { const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); } };
+  $('edit-mode').onclick = () => { editMode = !editMode; render(); };
+  $('schedule-body').onclick = (event) => {
+    const b = event.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (editMode) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
+    if (b.hasAttribute('data-employee')) employeeEditor(b.dataset.employee);
+    if (b.hasAttribute('data-department')) departmentEditor(b.dataset.department);
+    if (b.hasAttribute('data-add-department')) employeeEditor(null,b.dataset.addDepartment);
+    if (b.dataset.action === 'first-employee') employeeEditor();
+  };
+  $('schedule-body').onkeydown = (event) => {
+    const b = event.target.closest('[data-person][data-day]'); if (!b) return;
+    const people = orderedEmployees(), personIndex = people.findIndex((p) => p.id === b.dataset.person), day = Number(b.dataset.day);
+    const arrows = {ArrowLeft:[personIndex,day-1],ArrowRight:[personIndex,day+1],ArrowUp:[personIndex-1,day],ArrowDown:[personIndex+1,day]};
+    if (arrows[event.key]) { event.preventDefault(); const [i,d] = arrows[event.key]; if (people[i] && d>=0 && d<7) focusCell(people[i].id,d); }
+    else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applyShift(b.dataset.person,day,''); }
+    else if (event.key === 'F2') { event.preventDefault(); cellEditor(b.dataset.person,day); }
+    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = state.shifts[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(b.dataset.person,day,false); toast('Выбрана смена: ' + s.label); } }
+  };
+  $('schedule-body').addEventListener('paste',pasteRange);
+  document.addEventListener('keydown',(event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !dialog.open && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) { event.preventDefault(); undo(); }
+  });
+  $('prev-week').onclick = () => moveWeek(-7);
+  $('next-week').onclick = () => moveWeek(7);
+  $('today').onclick = () => setWeek(new Date());
+  $('week-date').onchange = (event) => { if (event.target.value) setWeek(event.target.value); };
+  $('copy-week').onclick = copyPreviousWeek;
+  $('undo').onclick = undo;
+  $('add-employee').onclick = () => employeeEditor();
+  $('manage-departments').onclick = departmentList;
+  $('manage-shifts').onclick = shiftList;
+  $('data-menu').onclick = dataMenu;
+  $('backup-shortcut').onclick = exportJSON;
+  $('export-png').onclick = pngDialog;
+  $('import-file').onchange = (event) => { importJSON(event.target.files[0]); event.target.value = ''; };
+  $('close-dialog').onclick = closeModal;
+  $('dialog-body').onclick = (event) => { if (event.target.closest('[data-close]')) closeModal(); };
+  dialog.addEventListener('close',() => { exportSequence++; if (exportURL) { URL.revokeObjectURL(exportURL); exportURL=null; } });
+  window.addEventListener('beforeunload',(event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('storage',(event) => {
+    if (event.key !== C.STORAGE_KEY && event.key !== null) return;
+    externalChange = true;
+    $('save-status').textContent = 'Другая вкладка'; $('save-status').classList.add('error');
+    showWarning('Данные изменены в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения. При необходимости сохраните текущий график в JSON и загрузите данные из другой вкладки.',true); render();
+  });
+  render();
+  if (loaded.error) {
+    $('save-status').textContent = loaded.recovered ? 'Восстановлено из копии' : 'Проверьте данные';
+    $('save-status').classList.add('error');
+    showWarning(loaded.error + (loaded.recovered ? ' Загружена предыдущая сохранённая копия. Проверьте последние изменения.' : ' Исходные данные не перезаписаны. Если это первое открытие, добавьте сотрудников или импортируйте JSON.'));
+  } else persist();
+})();
