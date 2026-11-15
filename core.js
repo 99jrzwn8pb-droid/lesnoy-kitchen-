@@ -162,6 +162,80 @@
     try { parsed = JSON.parse(raw); } catch (_) { fail('Данные не являются корректным JSON.'); }
     return validateState(parsed);
   }
+
+  // Список сотрудников импортируется отдельно от полной резервной копии.
+  // Совпавшие имена сохраняют внутренние ID, на которые ссылаются смены.
+  function mergeRoster(state, input) {
+    const next = validateState(state);
+    record(input, 'Список сотрудников');
+    if (input.type !== 'lesnoy-roster' || input.version !== 1) {
+      fail('Формат списка сотрудников не поддерживается.');
+    }
+    const incoming = validateState({
+      version: 1, departments: input.departments, employees: input.employees,
+      shifts: [], weeks: {}, selectedWeek: next.selectedWeek, updatedAt: next.updatedAt
+    });
+    const nameKey = value => value.normalize('NFKC').toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+    function byName(items, label) {
+      const map = new Map();
+      for (const item of items) {
+        const key = nameKey(item.name);
+        if (map.has(key)) fail(label + ': повторяется имя или название «' + item.name + '». Уточните совпадающие записи перед импортом.');
+        map.set(key, item);
+      }
+      return map;
+    }
+    const existingDepartments = byName(next.departments, 'Существующие цеха');
+    const existingEmployees = byName(next.employees, 'Существующие сотрудники');
+    byName(incoming.departments, 'Импортируемые цеха');
+    byName(incoming.employees, 'Импортируемые сотрудники');
+    const departmentIds = new Set(next.departments.map(item => item.id));
+    const employeeIds = new Set(next.employees.map(item => item.id));
+    function availableId(preferred, used) {
+      let value = preferred;
+      for (let number = 2; used.has(value); number++) {
+        const suffix = '-' + number;
+        value = preferred.slice(0, 64 - suffix.length) + suffix;
+      }
+      used.add(value);
+      return value;
+    }
+    const departmentMap = new Map();
+    const orderedDepartments = [];
+    let departmentsAdded = 0;
+    for (const department of incoming.departments) {
+      let target = existingDepartments.get(nameKey(department.name));
+      if (target) target.name = department.name;
+      else {
+        target = { id: availableId(department.id, departmentIds), name: department.name };
+        departmentsAdded++;
+      }
+      departmentMap.set(department.id, target.id);
+      orderedDepartments.push(target);
+    }
+    const importedDepartmentIds = new Set(orderedDepartments.map(item => item.id));
+    next.departments = orderedDepartments.concat(next.departments.filter(item => !importedDepartmentIds.has(item.id)));
+    const orderedEmployees = [];
+    let added = 0;
+    let updated = 0;
+    for (const employee of incoming.employees) {
+      let target = existingEmployees.get(nameKey(employee.name));
+      const department = departmentMap.get(employee.department);
+      if (target) {
+        const phone = employee.phone || target.phone;
+        if (target.name !== employee.name || target.phone !== phone || target.department !== department) updated++;
+        Object.assign(target, { name: employee.name, phone, department });
+      } else {
+        target = { ...employee, id: availableId(employee.id, employeeIds), department };
+        added++;
+      }
+      orderedEmployees.push(target);
+    }
+    const importedEmployeeIds = new Set(orderedEmployees.map(item => item.id));
+    next.employees = orderedEmployees.concat(next.employees.filter(item => !importedEmployeeIds.has(item.id)));
+    // Общие лимиты проверяются после объединения, до возврата результата.
+    return { state: validateState(next), added, updated, departmentsAdded };
+  }
   function load(storage) {
     let raw;
     try { raw = storage.getItem(STORAGE_KEY); }
@@ -211,5 +285,5 @@
     return valid;
   }
 
-  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, load, save };
+  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, mergeRoster, load, save };
 });

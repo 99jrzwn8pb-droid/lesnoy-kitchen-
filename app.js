@@ -243,18 +243,49 @@
     download(new Blob([JSON.stringify(state,null,2)],{type:'application/json;charset=utf-8'}),'lesnoy-backup-' + new Date().toISOString().slice(0,10) + '.json');
     toast('Резервная копия подготовлена. Храните JSON в личных файлах.');
   }
+  function rosterPreview(roster) {
+    const preview = C.mergeRoster(state,roster);
+    const departments = new Map(roster.departments.map((d) => [d.id,d.name]));
+    modal('Добавить команду',`<p class="dialog-note">Сотрудников в файле: ${roster.employees.length}. Добавится: ${preview.added}, обновится: ${preview.updated}. Уже заполненные смены и недели сохранятся.</p><div>${roster.employees.map((p) => `<div class="list-row"><span><strong>${esc(p.name)}</strong><br><span style="font-size:11px;color:#7d8973">${esc(departments.get(p.department))} · ${esc(p.phone || 'Телефон не указан')}</span></span></div>`).join('')}</div><p class="dialog-note">Данные сохранятся только в этом браузере. Для другого устройства используйте этот же файл или личную ссылку. Пустое поле телефона не стирает уже введённый номер.</p><div class="form-actions"><button type="button" class="button" data-close>Отмена</button><button id="confirm-roster" class="button primary">Добавить сотрудников</button></div>`,(body) => {
+      body.querySelector('#confirm-roster').onclick = () => {
+        if (commit((next) => { Object.assign(next,C.mergeRoster(next,roster).state); },'Команда добавлена. Смены и недели сохранены.')) closeModal();
+      };
+    });
+  }
+  function importParsed(parsed) {
+    if (parsed?.type === 'lesnoy-roster') { rosterPreview(parsed); return; }
+    const incoming = C.validateState(parsed);
+    if (!confirm(`Импортировать ${incoming.employees.length} сотрудников и ${Object.keys(incoming.weeks).length} недель? Весь текущий график, сотрудники и варианты смен будут заменены. Рекомендуем сначала скачать JSON текущих данных. Замену можно отменить кнопкой «Отменить».`)) return;
+    if (commit((next) => { Object.keys(next).forEach((key) => delete next[key]); Object.assign(next,incoming); },'Резервная копия импортирована')) closeModal();
+  }
+  function importRosterLink() {
+    const prefix = '#roster=';
+    if (!location.hash.startsWith(prefix)) return;
+    const encoded = location.hash.slice(prefix.length);
+    // Фрагмент после # обрабатывается только браузером и не отправляется хостингу.
+    // Убираем его из адреса до показа данных и до любых дальнейших переходов.
+    try { window.history.replaceState(null,'',location.pathname + location.search); }
+    catch (_) { toast('Не удалось убрать личные данные из адреса. Используйте импорт JSON.'); return; }
+    try {
+      if (encoded.length > 100000 || !/^[A-Za-z0-9_-]+$/.test(encoded)) throw new Error('Неверная ссылка импорта команды.');
+      const base64 = encoded.replace(/-/g,'+').replace(/_/g,'/');
+      const raw = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
+      const decoded = new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(raw,(c) => c.charCodeAt(0)));
+      const roster = JSON.parse(decoded);
+      if (roster?.type !== 'lesnoy-roster') throw new Error('В ссылке нет списка сотрудников.');
+      rosterPreview(roster);
+    } catch (error) { toast('Команда не импортирована: ' + (error instanceof SyntaxError ? 'повреждённые данные' : error.message)); }
+  }
   async function importJSON(file) {
     if (!file) return;
     if (file.size > 8*1024*1024) { toast('Файл больше 8 МБ. Выберите резервную копию этого приложения.'); return; }
     try {
       const parsed = JSON.parse((await file.text()).replace(/^\uFEFF/,''));
-      const incoming = C.validateState(parsed);
-      if (!confirm(`Импортировать ${incoming.employees.length} сотрудников и ${Object.keys(incoming.weeks).length} недель? Весь текущий график, сотрудники и варианты смен будут заменены. Рекомендуем сначала скачать JSON текущих данных. Замену можно отменить кнопкой «Отменить».`)) return;
-      if (commit((next) => { Object.keys(next).forEach((key) => delete next[key]); Object.assign(next,incoming); },'Резервная копия импортирована')) closeModal();
+      importParsed(parsed);
     } catch (error) { toast('Импорт не выполнен: ' + (error instanceof SyntaxError ? 'некорректный JSON' : error.message)); }
   }
   function dataMenu() {
-    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать резервную копию JSON</button><button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную. Импорт заменяет все данные.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
+    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button><button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
       body.querySelector('#json-export').onclick = exportJSON;
       body.querySelector('#json-import').onclick = () => $('import-file').click();
       body.querySelector('#help-button').onclick = help;
@@ -368,10 +399,12 @@
     $('save-status').textContent = 'Другая вкладка'; $('save-status').classList.add('error');
     showWarning('Данные изменены в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения. При необходимости сохраните текущий график в JSON и загрузите данные из другой вкладки.',true); render();
   });
+  window.addEventListener('hashchange',importRosterLink);
   render();
   if (loaded.error) {
     $('save-status').textContent = loaded.recovered ? 'Восстановлено из копии' : 'Проверьте данные';
     $('save-status').classList.add('error');
     showWarning(loaded.error + (loaded.recovered ? ' Загружена предыдущая сохранённая копия. Проверьте последние изменения.' : ' Исходные данные не перезаписаны. Если это первое открытие, добавьте сотрудников или импортируйте JSON.'));
   } else persist();
+  importRosterLink();
 })();
