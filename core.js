@@ -242,7 +242,28 @@
     catch (_) {
       return { state: createState(), error: 'Браузер запретил доступ к локальному сохранению. Изменения нужно сохранять в JSON.', recovered: false };
     }
-    if (raw === null || raw === undefined) return { state: createState(), error: null, recovered: false };
+    if (raw === null || raw === undefined) {
+      let backup;
+      try { backup = storage.getItem(BACKUP_KEY); }
+      catch (_) {
+        return {
+          state: createState(), recovered: false,
+          error: 'Основное сохранение отсутствует, а браузер не дал прочитать резервную копию. Сохранённые данные оставлены без изменений. Импортируйте JSON-копию.'
+        };
+      }
+      if (backup === null || backup === undefined) return { state: createState(), error: null, recovered: false };
+      try {
+        return {
+          state: decode(backup), recovered: true,
+          error: 'Основное сохранение отсутствует. Восстановлена предыдущая сохранённая версия из резервной копии.'
+        };
+      } catch (error) {
+        return {
+          state: createState(), recovered: false,
+          error: 'Основное сохранение отсутствует. Не удалось прочитать резервную копию: ' + error.message + ' Исходная копия оставлена без изменений. Импортируйте JSON-копию.'
+        };
+      }
+    }
     try { return { state: decode(raw), error: null, recovered: false }; }
     catch (error) {
       try {
@@ -266,6 +287,9 @@
     let previous;
     try { previous = storage.getItem(STORAGE_KEY); }
     catch (_) { fail('Браузер запретил локальное сохранение. Скачайте резервную копию JSON.'); }
+    // Повторное открытие страницы не заменяет полезную предыдущую копию
+    // тем же самым состоянием и не требует новой записи в хранилище.
+    if (previous === serialized) return valid;
     if (previous !== null && previous !== undefined) {
       try { decode(previous); }
       catch (_) {
