@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#244c3c">
+  <meta name="theme-color" content="#ffffff">
   <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
   <script src="core.js?v=2" defer></script>
-  <script src="png.js" defer></script>
-  <script src="app.js?v=3" defer></script>
+  <script src="png.js?v=4" defer></script>
+  <script src="app.js?v=4" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -27,7 +27,7 @@
   <main>
     <div id="storage-warning" class="warning" role="alert" hidden></div>
     <section class="heading-row" aria-label="Управление графиком">
-      <div><p class="eyebrow">КОМАНДА НА СВОИХ МЕСТАХ</p><h1>График кухни<span class="title-dot">.</span></h1></div>
+      <h1>Редактор графика</h1>
       <button id="export-png" class="button primary"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 12v5h14v-5"/></svg>Скачать PNG</button>
     </section>
 
@@ -53,7 +53,7 @@
 
       <div class="table-hint"><span><span class="hint-dot"></span><span id="mode-hint">Выберите смену и нажимайте ячейки</span></span><span class="scroll-hint">Прокрутите таблицу вбок →</span></div>
       <div id="table-scroll" class="table-scroll" tabindex="0" aria-label="Таблица графика, прокручивается по горизонтали">
-        <table id="schedule"><caption class="sr-only">График работы сотрудников по дням недели</caption><colgroup><col class="person-col"><col class="phone-col"><col span="7" class="day-col"></colgroup><thead id="schedule-head"></thead><tbody id="schedule-body"></tbody><tfoot id="schedule-foot"></tfoot></table>
+        <table id="schedule"><caption class="sr-only">График работы сотрудников по дням недели: начало и окончание смены</caption><colgroup><col class="person-col"><col class="phone-col"><col span="14" class="time-col"></colgroup><thead id="schedule-head"></thead><tbody id="schedule-body"></tbody><tfoot id="schedule-foot"></tfoot></table>
       </div>
       <div class="table-bottom"><div class="roster-actions"><button id="add-employee" class="button subtle small">＋ Сотрудник</button><button id="manage-departments" class="button subtle small">Цеха</button></div><span class="weekend-note"><i></i> Пятница и суббота</span><span id="team-count"></span></div>
     </section>
