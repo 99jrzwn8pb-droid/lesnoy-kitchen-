@@ -70,3 +70,19 @@ html.sheet-app,html.sheet-app body{width:100%;height:100%;overflow:hidden;oversc
 .ts-cell.ts-confirmed { background:#d8f1dd; }
 #ts-status { padding:0 14px; color:#555; }
 @media(max-width:650px){ .ts-controls { gap:6px; padding:8px; } .ts-controls h2 { width:100%; } }
+
+/* Табель: закреплённые даты и имена при прокрутке, как у недельного графика. */
+.ts-scroll{position:relative;overflow:auto;max-height:min(74vh,850px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}
+.ts-table{border-collapse:separate;border-spacing:0;min-width:max-content;font-variant-numeric:tabular-nums;}
+.ts-table thead th{position:sticky;top:0;z-index:4;background:#edf1ed;box-shadow:0 1px 0 #b8c3b8;}
+.ts-table thead .ts-name{position:sticky;top:0;left:0;z-index:7;background:#edf1ed;}
+.ts-table tbody .ts-name{position:sticky;left:0;z-index:3;background:#fff;box-shadow:1px 0 0 #aab4aa;}
+.ts-table tfoot th{position:sticky;bottom:0;z-index:4;background:#edf1ed;}
+.ts-table tfoot th:first-child{left:0;z-index:6;}
+.ts-table th small{display:block;font-size:10px;font-weight:400;}
+.ts-table thead th.ts-weekend{background:#e6eaf1;}
+.ts-table tbody tr:nth-child(even) .ts-name{background:#f7f8f7;}
+.ts-table .ts-name{min-width:195px;max-width:240px;white-space:normal;}
+.ts-table .ts-name button{font-weight:600;white-space:normal;}
+.ts-table .ts-cell{min-width:34px;min-height:35px;}
+@media(max-width:650px){.ts-table .ts-name{min-width:145px;max-width:160px;}.ts-scroll{max-height:70vh;padding:0;}}
