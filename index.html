@@ -7,12 +7,12 @@
   <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
   <script src="core.js?v=11" defer></script>
   <script src="png.js?v=14" defer></script>
   <script src="viewport.js?v=7" defer></script>
   <script src="app.js?v=11" defer></script>
-  <script src="timesheet.js?v=1" defer></script>
+  <script src="timesheet.js?v=2" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -68,13 +68,13 @@
         <button id="ts-import-week" class="button primary">Добавить прошлую неделю</button>
         <button id="ts-confirm" class="button">Подтвердить месяц</button>
         <button id="ts-export" class="button">CSV</button>
-        <button id="ts-backup" class="button">Копия табеля JSON</button>
+        <button id="ts-backup" class="button">Полная копия JSON</button>
         <button id="ts-restore" class="button">Восстановить табель</button>
         <input id="ts-file" type="file" accept=".json,application/json" hidden>
       </div>
       <p id="ts-status"></p>
       <div id="ts-body" class="ts-scroll"></div>
-      <p class="privacy-note">Табель хранится отдельно от графика в этом браузере. Сохраняйте обе резервные копии JSON. Для изменения ставки нажмите на имя, для корректировки дня — на ячейку, для ручной суммы — на выплату.</p>
+      <p class="privacy-note">Табель хранится отдельно от графика в этом браузере. Кнопка «Полная копия JSON» сохраняет оба раздела. Для изменения ставки нажмите на имя, для корректировки дня — на ячейку, для ручной суммы — на выплату.</p>
     </section>
     <footer class="page-footer"><span>Только на этом устройстве <span class="footer-separator">·</span> Без регистрации</span><button id="backup-shortcut" class="text-button">Сохранить резервную копию ↗</button></footer>
     <p class="privacy-note">Данные хранятся в этом браузере и не синхронизируются между iPhone и Mac. Для переноса используйте JSON.</p>
