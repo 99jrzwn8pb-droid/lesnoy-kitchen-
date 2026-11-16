@@ -278,6 +278,70 @@
     // Общие лимиты проверяются после объединения, до возврата результата.
     return { state: validateState(next), added, updated, departmentsAdded };
   }
+  // Импорт одной недели заменяет только указанные строки, включая пустые дни.
+  // Все проверки выполняются над копией; ошибка не оставляет частичных правок.
+  function importWeekSchedule(state, input) {
+    let next = validateState(state);
+    record(input, 'График недели');
+    if (input.type !== 'lesnoy-week' || input.version !== 1) fail('Формат графика недели не поддерживается.');
+    weekDates(input.week);
+    const nameKey = value => value.normalize('NFKC').toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+    const seenNames = new Set();
+    const rows = boundedList(input.rows, 200, 'Строки графика').map(item => {
+      record(item, 'Строка графика');
+      const name = string(item.name, 100, 'Имя сотрудника');
+      const key = nameKey(name);
+      if (seenNames.has(key)) fail('В графике повторяется сотрудник «' + name + '».');
+      seenNames.add(key);
+      if (!Array.isArray(item.shifts) || item.shifts.length !== 7) fail('У каждого сотрудника должно быть ровно 7 дней.');
+      const shifts = Array.from(item.shifts, label => string(label, 24, 'Обозначение смены', true));
+      return { name, key, shifts };
+    });
+    if (!rows.length) fail('В файле нет строк графика.');
+    if (!next.employees.length && input.roster) next = mergeRoster(next, input.roster).state;
+    const employeesByName = new Map();
+    for (const employee of next.employees) {
+      const key = nameKey(employee.name);
+      if (!employeesByName.has(key)) employeesByName.set(key, []);
+      employeesByName.get(key).push(employee);
+    }
+    // Сначала сопоставляем все имена, прежде чем создавать варианты смен.
+    for (const row of rows) {
+      const matches = employeesByName.get(row.key) || [];
+      if (!matches.length) fail('Сотрудник «' + row.name + '» не найден. Сначала добавьте его в команду.');
+      if (matches.length !== 1) fail('Найдено несколько сотрудников «' + row.name + '». Уточните совпадающие имена.');
+      row.employeeId = matches[0].id;
+    }
+    const shiftByLabel = new Map();
+    const shiftIds = new Set(next.shifts.map(shift => shift.id));
+    for (const shift of next.shifts) {
+      const key = shiftLabelKey(shift.label);
+      if (!shiftByLabel.has(key)) shiftByLabel.set(key, shift.id);
+    }
+    const maxShifts = next.presetVersion === 1 ? 33 : 30;
+    let shiftNumber = 1;
+    let filledCells = 0;
+    const targetWeek = next.weeks[input.week] || {};
+    for (const row of rows) {
+      targetWeek[row.employeeId] = row.shifts.map(label => {
+        if (!label) return '';
+        filledCells++;
+        const key = shiftLabelKey(label);
+        if (!shiftByLabel.has(key)) {
+          if (next.shifts.length >= maxShifts) fail('Недостаточно места для новых вариантов смен. Удалите неиспользуемый вариант через «Настроить».');
+          while (shiftIds.has('import-shift-' + shiftNumber)) shiftNumber++;
+          const shiftId = 'import-shift-' + shiftNumber++;
+          shiftIds.add(shiftId);
+          next.shifts.push({ id: shiftId, label, color: '#e6eee6' });
+          shiftByLabel.set(key, shiftId);
+        }
+        return shiftByLabel.get(key);
+      });
+    }
+    next.weeks[input.week] = targetWeek;
+    next.selectedWeek = input.week;
+    return { state: validateState(next), employeesApplied: rows.length, filledCells };
+  }
   function load(storage) {
     let raw;
     try { raw = storage.getItem(STORAGE_KEY); }
@@ -351,5 +415,5 @@
     return valid;
   }
 
-  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, configureShiftPresets, selectableShifts, mergeRoster, load, save };
+  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, configureShiftPresets, selectableShifts, mergeRoster, importWeekSchedule, load, save };
 });

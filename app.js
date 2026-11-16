@@ -364,6 +364,14 @@
     }
     closeModal();
   }
+  function applyWeekSchedule(schedule) {
+    const seeded = state.employees.length === 0 && schedule.roster;
+    const result = C.importWeekSchedule(state,schedule);
+    if (!commit((next) => { Object.assign(next,result.state); },'График заполнен: ' + result.filledCells + ' смен у ' + result.employeesApplied + ' сотрудников.')) return;
+    if (seeded) writeRosterCache(schedule.roster);
+    closeModal();
+    scheduleViewport?.fit();
+  }
   function rosterPreview(roster) {
     const preview = C.mergeRoster(state,roster);
     const departments = new Map(roster.departments.map((d) => [d.id,d.name]));
@@ -376,14 +384,16 @@
   function importParsed(parsed) {
     if (parsed?.type === 'lesnoy-roster') { rosterPreview(parsed); return; }
     if (parsed?.type === 'lesnoy-contact') { applyContact(parsed); return; }
+    if (parsed?.type === 'lesnoy-week') { applyWeekSchedule(parsed); return; }
     const incoming = C.configureShiftPresets(C.validateState(parsed));
     if (!confirm(`Импортировать ${incoming.employees.length} сотрудников и ${Object.keys(incoming.weeks).length} недель? Весь текущий график, сотрудники и варианты смен будут заменены. Рекомендуем сначала скачать JSON текущих данных. Замену можно отменить кнопкой «Отменить».`)) return;
     if (commit((next) => { Object.keys(next).forEach((key) => delete next[key]); Object.assign(next,incoming); },'Резервная копия импортирована')) closeModal();
   }
   function importRosterLink() {
+    const weekUpdate = location.hash.startsWith('#week=');
     const contactUpdate = location.hash.startsWith('#contact=');
     const restoring = location.hash.startsWith('#restore-roster=');
-    const prefix = contactUpdate ? '#contact=' : restoring ? '#restore-roster=' : '#roster=';
+    const prefix = weekUpdate ? '#week=' : contactUpdate ? '#contact=' : restoring ? '#restore-roster=' : '#roster=';
     if (!location.hash.startsWith(prefix)) return;
     const encoded = location.hash.slice(prefix.length);
     // Фрагмент после # обрабатывается только браузером и не отправляется хостингу.
@@ -396,6 +406,7 @@
       const raw = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
       const decoded = new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(raw,(c) => c.charCodeAt(0)));
       const roster = JSON.parse(decoded);
+      if (weekUpdate) { applyWeekSchedule(roster); return; }
       if (contactUpdate) { applyContact(roster); return; }
       if (roster?.type !== 'lesnoy-roster') throw new Error('В ссылке нет списка сотрудников.');
       if (restoring) applyRoster(roster,'Сотрудники, цеха и телефоны восстановлены.');
@@ -412,7 +423,7 @@
   }
   function dataMenu() {
     const roster = cachedRoster();
-    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
+    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели. Файл графика недели заменяет только указанные строки этой недели, включая пустые дни; другие недели и телефоны сохраняются.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
       body.querySelector('#json-export').onclick = exportJSON;
       body.querySelector('#json-import').onclick = () => $('import-file').click();
       body.querySelector('#roster-restore')?.addEventListener('click',() => rosterPreview(roster));
