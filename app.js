@@ -41,7 +41,7 @@
   const dateLabel = (date, options) => new Date(date + 'T12:00:00Z').toLocaleDateString('ru-RU', {...options, timeZone:'UTC'});
   const id = (prefix) => prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10));
   const orderedEmployees = () => state.departments.flatMap((dep) => state.employees.filter((p) => p.department === dep.id));
-  const row = (personId) => state.weeks[state.selectedWeek]?.[personId] || Array(7).fill('');
+  const row = (personId,department = false) => (department ? state.departmentWeeks : state.weeks)?.[state.selectedWeek]?.[personId] || Array(7).fill('');
   const shiftById = (shiftId) => state.shifts.find((s) => s.id === shiftId);
   const rangeLabel = () => {
     const dates = C.weekDates(state.selectedWeek);
@@ -111,20 +111,21 @@
     try { setWeek(C.addDays(state.selectedWeek,days)); }
     catch (_) { toast('Достигнута граница календаря: 1900–2199 годы.'); }
   }
-  function applyShift(personId, day, shiftId, message) {
-    if (row(personId)[day] === shiftId) return true;
+  function applyShift(personId, day, shiftId, message, department = false) {
+    if (row(personId,department)[day] === shiftId) return true;
     const scrollLeft = $('table-scroll').scrollLeft, scrollTop = $('table-scroll').scrollTop;
     const applied = commit((next) => {
-      const week = next.weeks[next.selectedWeek] ||= {};
+      const calendar = department ? (next.departmentWeeks ||= {}) : next.weeks;
+      const week = calendar[next.selectedWeek] ||= {};
       const values = week[personId] ||= Array(7).fill('');
       values[day] = shiftId;
     },message);
-    focusCell(personId,day,false);
+    focusCell(personId,day,false,department);
     $('table-scroll').scrollLeft = scrollLeft; $('table-scroll').scrollTop = scrollTop;
     return applied;
   }
-  function focusCell(personId,day,scroll = true) {
-    const button = $('schedule-body').querySelector(`[data-person="${personId}"][data-day="${day}"]`);
+  function focusCell(personId,day,scroll = true,department = false) {
+    const button = $('schedule-body').querySelector(`[${department?'data-department-cell':'data-person'}="${personId}"][data-day="${day}"]`);
     button?.focus({preventScroll:true});
     if (scroll && button) {
       if (scheduleViewport) scheduleViewport.reveal(button);
@@ -136,6 +137,13 @@
     d.setUTCDate(d.getUTCDate() + 3);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
     return Math.ceil((((d-yearStart)/86400000)+1)/7);
+  }
+  function departmentCalendarCells(department,dates) {
+    return dates.map((date,day) => {
+      const shift = shiftById(row(department.id,true)[day]);
+      const times = shift ? intervalFromLabel(shift.label) : null;
+      return `<td colspan="2" class="group-day shift-cell split-day ${[4,5].includes(day)?'weekend':''}" data-filled="${!!shift}"><button class="cell-button" data-department-cell="${esc(department.id)}" data-day="${day}" aria-label="${esc(department.name)}, ${esc(dateLabel(date,{weekday:'long',day:'numeric',month:'long'}))}: ${esc(shift?.label || 'не заполнено')}"><span class="shift-time time-start" aria-hidden="true">${esc(times?.start || shift?.label || '')}</span><span class="shift-time time-end" aria-hidden="true">${esc(times?.end || shift?.label || '')}</span></button></td>`;
+    }).join('');
   }
   function render() {
     const choices = C.selectableShifts(state);
@@ -150,7 +158,7 @@
     $('schedule-head').innerHTML = '<tr class="sheet-title-row"><th class="sheet-title" colspan="16">График кухни &quot;ЛЕСНОЙ&quot;</th></tr><tr class="sheet-days-row"><th class="employee-header" scope="col" rowspan="2">Фамилия Имя сотрудника</th><th scope="col" rowspan="2" class="phone-header">№ телефона</th>' + dates.map((_,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][i]}</th>`).join('') + '</tr><tr class="sheet-dates-row">' + dates.map((date,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${dateLabel(date,{day:'2-digit',month:'2-digit',year:'numeric'})}</th>`).join('') + '</tr>';
     $('schedule-body').innerHTML = state.departments.map((dep) => {
       const people = state.employees.filter((p) => p.department === dep.id);
-      return `<tr class="department-row"><th colspan="2" scope="rowgroup"><button data-department="${esc(dep.id)}" title="Редактировать цех">${esc(dep.name)}</button></th>${dates.map((_,i) => `<td colspan="2" class="group-day split-day ${[4,5].includes(i)?'weekend':''}"></td>`).join('')}</tr>` + (people.length ? people.map((p) => {
+      return `<tr class="department-row"><th colspan="2" scope="rowgroup"><button data-department="${esc(dep.id)}" title="Редактировать цех">${esc(dep.name)}</button></th>${departmentCalendarCells(dep,dates)}</tr>` + (people.length ? people.map((p) => {
         return `<tr><th scope="row" class="employee-cell"><button class="person-button" data-employee="${esc(p.id)}" title="Редактировать сотрудника">${esc(p.name)}</button></th><td class="phone-cell">${p.phone ? `<a href="tel:${esc(p.phone.replace(/[^+\d]/g,''))}">${esc(p.phone)}</a>` : ''}</td>` + row(p.id).map((shiftId,day) => {
           const s = shiftById(shiftId);
           const times = s ? intervalFromLabel(s.label) : null;
@@ -227,8 +235,8 @@
       };
       body.querySelector('#delete-department')?.addEventListener('click',() => {
         if (state.employees.some((p) => p.department === dep.id)) { formError(form,'Сначала перенесите сотрудников в другой цех.'); return; }
-        if (!confirm(`Удалить пустой цех «${dep.name}»?`)) return;
-        if (commit((next) => { next.departments = next.departments.filter((d) => d.id !== dep.id); },'Цех удалён')) departmentList();
+        if (!confirm(`Удалить цех «${dep.name}» и значения его строки во всех неделях? Действие можно отменить.`)) return;
+        if (commit((next) => { next.departments = next.departments.filter((d) => d.id !== dep.id); Object.values(next.departmentWeeks).forEach((week) => { delete week[dep.id]; }); },'Цех удалён')) departmentList();
       });
     });
   }
@@ -249,7 +257,7 @@
         if (commit((next) => { if (shift) Object.assign(next.shifts.find((s) => s.id === shift.id),{label,color:String(data.get('color'))}); else next.shifts.push({id:id('shift'),label,color:String(data.get('color'))}); },'Смена сохранена')) shiftList();
       };
       body.querySelector('#delete-shift')?.addEventListener('click',() => {
-        const used = Object.values(state.weeks).some((w) => Object.values(w).some((r) => r.includes(shift.id)));
+        const used = [state.weeks,state.departmentWeeks].some((calendar) => Object.values(calendar).some((w) => Object.values(w).some((r) => r.includes(shift.id))));
         if (used) { formError(form,'Эта смена уже есть в графике. Сначала замените её в соответствующих неделях.'); return; }
         if (!confirm(`Удалить вариант «${shift.label}»?`)) return;
         if (commit((next) => { next.shifts = next.shifts.filter((s) => s.id !== shift.id); },'Смена удалена')) shiftList();
@@ -263,13 +271,13 @@
     const end = match[3].padStart(2,'0') + ':' + (match[4] || '00');
     return /^([01]\d|2[0-3]):[0-5]\d$/.test(start) && /^([01]\d|2[0-3]):[0-5]\d$/.test(end) ? {start,end} : null;
   }
-  function cellEditor(personId,day) {
-    const person = state.employees.find((p) => p.id === personId);
-    const current = row(personId)[day];
+  function cellEditor(personId,day,department = false) {
+    const person = (department ? state.departments : state.employees).find((p) => p.id === personId);
+    const current = row(personId,department)[day];
     const interval = intervalFromLabel(shiftById(current)?.label) || (!current ? intervalFromLabel(shiftById(brush)?.label) : null);
-    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${C.selectableShifts(state).map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
-      body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { if (applyShift(personId,day,b.dataset.pickShift,'Смена применена')) closeModal(); }; });
-      body.querySelector('#delete-cell-shift').onclick = () => { if (applyShift(personId,day,'','Смена удалена')) closeModal(); };
+    modal(department ? 'Ячейка «' + person.name + '»' : 'Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${C.selectableShifts(state).map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
+      body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { if (applyShift(personId,day,b.dataset.pickShift,'Смена применена',department)) closeModal(); }; });
+      body.querySelector('#delete-cell-shift').onclick = () => { if (applyShift(personId,day,'','Смена удалена',department)) closeModal(); };
       const form = body.querySelector('#interval-form');
       const customForm = body.querySelector('#custom-shift-form');
       function saveLabel(label, sourceForm, times) {
@@ -279,11 +287,12 @@
           return known && known.start === times.start && known.end === times.end;
         });
         if (!existing && state.shifts.length >= 30) { formError(sourceForm,'Уже есть 30 вариантов смен. Удалите неиспользуемый вариант через «Настроить» или выберите готовую смену.'); return; }
-        if (existing) { if (applyShift(personId,day,existing.id,'Время смены сохранено')) closeModal(); return; }
+        if (existing) { if (applyShift(personId,day,existing.id,'Время смены сохранено',department)) closeModal(); return; }
         if (commit((next) => {
           const shiftId = id('shift');
           next.shifts.push({id:shiftId,label,color:'#e6eee6'});
-          const week = next.weeks[next.selectedWeek] ||= {}; (week[personId] ||= Array(7).fill(''))[day] = shiftId;
+          const calendar = department ? (next.departmentWeeks ||= {}) : next.weeks;
+          const week = calendar[next.selectedWeek] ||= {}; (week[personId] ||= Array(7).fill(''))[day] = shiftId;
         },'Время смены сохранено')) closeModal();
       }
       function intervalValues() {
@@ -455,7 +464,7 @@
           try { canShare = !!navigator.canShare?.({files:[shareFile]}); } catch (_) { /* download remains available */ }
           share.hidden = !canShare;
           share.onclick = async () => {
-            try { await navigator.share({files:[shareFile],title:'ЛЕСНОЙ | График кухни'}); }
+            try { await navigator.share({files:[shareFile]}); }
             catch (error) { if (error.name !== 'AbortError') toast('Не удалось поделиться. Скачайте PNG или сохраните картинку удержанием.'); }
           };
         } catch (error) { if (seq === exportSequence) body.querySelector('#png-status').textContent = 'Не удалось создать PNG. ' + error.message; }
@@ -464,32 +473,35 @@
     });
   }
   function copyPreviousWeek() {
-    let source;
-    try { source = state.weeks[C.previousWeek(state.selectedWeek)]; }
+    let source,departmentSource;
+    try { const previous = C.previousWeek(state.selectedWeek); source = state.weeks[previous] || {}; departmentSource = state.departmentWeeks[previous] || {}; }
     catch (_) { toast('Предыдущая неделя за пределами календаря.'); return; }
-    if (!source || !Object.values(source).some((values) => values.some(Boolean))) { toast('В предыдущей неделе пока нет смен'); return; }
-    const filled = Object.values(state.weeks[state.selectedWeek] || {}).some((values) => values.some(Boolean));
+    const hasValues = (week) => Object.values(week).some((values) => values.some(Boolean));
+    if (!hasValues(source) && !hasValues(departmentSource)) { toast('В предыдущей неделе пока нет смен'); return; }
+    const filled = hasValues(state.weeks[state.selectedWeek] || {}) || hasValues(state.departmentWeeks[state.selectedWeek] || {});
     if (filled && !confirm('Заменить смены выбранной недели графиком предыдущей недели? Сотрудники и телефоны сохранятся. Действие можно отменить.')) return;
-    commit((next) => { next.weeks[next.selectedWeek] = clone(source); },'Смены скопированы из предыдущей недели');
+    commit((next) => { next.weeks[next.selectedWeek] = clone(source); next.departmentWeeks[next.selectedWeek] = clone(departmentSource); },'Смены скопированы из предыдущей недели');
   }
   function pasteRange(event) {
-    const target = event.target.closest('[data-person][data-day]');
+    const target = event.target.closest('[data-person][data-day],[data-department-cell][data-day]');
     if (!target || dialog.open) return;
     event.preventDefault();
     const text = event.clipboardData?.getData('text/plain');
     if (!text || text.length > 40000) { toast('Нет данных для вставки или диапазон слишком большой'); return; }
     const grid = text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map((line) => line.split('\t').map((v) => v.trim()));
-    const people = orderedEmployees(); const start = people.findIndex((p) => p.id === target.dataset.person); const day = Number(target.dataset.day);
+    const department = target.hasAttribute('data-department-cell');
+    const people = department ? [{id:target.dataset.departmentCell}] : orderedEmployees(); const start = department ? 0 : people.findIndex((p) => p.id === target.dataset.person); const day = Number(target.dataset.day);
     if (start + grid.length > people.length || grid.some((r) => day + r.length > 7)) { toast('Диапазон выходит за пределы таблицы. Выберите другую начальную ячейку.'); return; }
     const normalize = (s) => s.replace(/[—–−]/g,'-').replace(/\s/g,'').toLocaleLowerCase('ru-RU');
     const matches = new Map(state.shifts.map((s) => [normalize(s.label),s.id]));
     const unknown = grid.flat().find((s) => s !== '' && s !== '-' && !matches.has(normalize(s)));
     if (unknown !== undefined) { toast(`Неизвестная смена «${unknown.slice(0,24)}». Сначала добавьте её в варианты смен.`); return; }
     commit((next) => {
-      const week = next.weeks[next.selectedWeek] ||= {};
+      const calendar = department ? next.departmentWeeks : next.weeks;
+      const week = calendar[next.selectedWeek] ||= {};
       grid.forEach((r,offset) => { const values = week[people[start+offset].id] ||= Array(7).fill(''); r.forEach((s,i) => { values[day+i] = matches.get(normalize(s)) || ''; }); });
     },'Диапазон из Excel вставлен');
-    focusCell(target.dataset.person,day);
+    focusCell(department ? target.dataset.departmentCell : target.dataset.person,day,true,department);
   }
 
   $('shift-palette').onclick = (event) => { const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); } };
@@ -497,19 +509,23 @@
   $('schedule-body').onclick = (event) => {
     const b = event.target.closest('button'); if (!b) return;
     if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (editMode || (brush !== '' && row(b.dataset.person)[day])) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
+    if (b.hasAttribute('data-department-cell')) { const day = Number(b.dataset.day); if (editMode || (brush !== '' && row(b.dataset.departmentCell,true)[day])) cellEditor(b.dataset.departmentCell,day,true); else applyShift(b.dataset.departmentCell,day,brush,'Ячейка строки сохранена',true); }
     if (b.hasAttribute('data-employee')) employeeEditor(b.dataset.employee);
     if (b.hasAttribute('data-department')) departmentEditor(b.dataset.department);
     if (b.hasAttribute('data-add-department')) employeeEditor(null,b.dataset.addDepartment);
     if (b.dataset.action === 'first-employee') employeeEditor();
   };
   $('schedule-body').onkeydown = (event) => {
-    const b = event.target.closest('[data-person][data-day]'); if (!b) return;
-    const people = orderedEmployees(), personIndex = people.findIndex((p) => p.id === b.dataset.person), day = Number(b.dataset.day);
+    const b = event.target.closest('[data-person][data-day],[data-department-cell][data-day]'); if (!b) return;
+    const department = b.hasAttribute('data-department-cell');
+    const personId = department ? b.dataset.departmentCell : b.dataset.person;
+    const people = state.departments.flatMap((dep) => [{id:dep.id,department:true},...state.employees.filter((p) => p.department === dep.id).map((p) => ({id:p.id,department:false}))]);
+    const personIndex = people.findIndex((p) => p.id === personId && p.department === department), day = Number(b.dataset.day);
     const arrows = {ArrowLeft:[personIndex,day-1],ArrowRight:[personIndex,day+1],ArrowUp:[personIndex-1,day],ArrowDown:[personIndex+1,day]};
-    if (arrows[event.key]) { event.preventDefault(); const [i,d] = arrows[event.key]; if (people[i] && d>=0 && d<7) focusCell(people[i].id,d); }
-    else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applyShift(b.dataset.person,day,''); }
-    else if (event.key === 'F2') { event.preventDefault(); cellEditor(b.dataset.person,day); }
-    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = C.selectableShifts(state)[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(b.dataset.person,day,false); toast('Выбрана смена: ' + s.label); } }
+    if (arrows[event.key]) { event.preventDefault(); const [i,d] = arrows[event.key]; if (people[i] && d>=0 && d<7) focusCell(people[i].id,d,true,people[i].department); }
+    else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applyShift(personId,day,'',null,department); }
+    else if (event.key === 'F2') { event.preventDefault(); cellEditor(personId,day,department); }
+    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = C.selectableShifts(state)[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(personId,day,false,department); toast('Выбрана смена: ' + s.label); } }
   };
   $('schedule-body').addEventListener('paste',pasteRange);
   document.addEventListener('keydown',(event) => {

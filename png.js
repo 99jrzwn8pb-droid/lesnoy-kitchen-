@@ -99,6 +99,7 @@
     const dates = datesFor(weekKey);
     const shifts = new Map(state.shifts.map(shift => [shift.id, shift]));
     const week = state.weeks[weekKey] || {};
+    const departmentWeek = state.departmentWeeks?.[weekKey] || {};
     const nameWidth = includePhones ? 220 : 260;
     const phoneWidth = includePhones ? 140 : 0;
     const leftWidth = nameWidth + phoneWidth;
@@ -109,26 +110,33 @@
     const bodyY = headerY + DAY_HEIGHT + DATE_HEIGHT;
     const rows = [];
     let y = bodyY;
+    function shiftCells(values) {
+      font(ctx, 400, 13, true);
+      return dates.map((_, day) => {
+        const shift = shifts.get((values || [])[day]);
+        const parts = splitShift(shift ? shift.label : '');
+        return parts.map(part => wrap(ctx, part, halfWidth - 8));
+      });
+    }
 
     // Каждая подпись измеряется в пределах своей ячейки, длинные слова переносятся.
     state.departments.forEach(department => {
       const employees = state.employees.filter(person => person.department === department.id);
-      if (!employees.length && state.employees.length) return;
+      const departmentValues = departmentWeek[department.id] || [];
+      if (!employees.length && state.employees.length && !departmentValues.some(value => shifts.has(value))) return;
       font(ctx, 700, 15, true);
       const groupLines = wrap(ctx, department.name, leftWidth - 12);
-      const groupHeight = Math.max(24, groupLines.length * 18 + 6);
-      rows.push({ type: 'department', text: groupLines, y, height: groupHeight });
+      const groupCells = shiftCells(departmentValues);
+      const groupCellLines = Math.max(...groupCells.flat().map(lines => lines.length));
+      const groupHeight = Math.max(24, groupLines.length * 18 + 6, groupCellLines * 17 + 7);
+      rows.push({ type: 'department', text: groupLines, cells: groupCells, y, height: groupHeight });
       y += groupHeight;
       employees.forEach(person => {
         font(ctx, 400, 14, true);
         const nameLines = wrap(ctx, person.name, nameWidth - 10);
         font(ctx, 400, 13, true);
         const phoneLines = includePhones ? wrap(ctx, person.phone || '', phoneWidth - 8) : [];
-        const cells = dates.map((_, day) => {
-          const shift = shifts.get((week[person.id] || [])[day]);
-          const parts = splitShift(shift ? shift.label : '');
-          return parts.map(part => wrap(ctx, part, halfWidth - 8));
-        });
+        const cells = shiftCells(week[person.id]);
         const lineCount = Math.max(nameLines.length, phoneLines.length, ...cells.flat().map(lines => lines.length));
         const height = Math.max(26, lineCount * 17 + 7);
         rows.push({ type: 'person', nameLines, phoneLines, cells, y, height });
@@ -196,7 +204,7 @@
         const fill = day === 4 || day === 5 ? C.weekend : C.paper;
         for (let half = 0; half < 2; half++) {
           cell(ctx, x + half * halfWidth, row.y, halfWidth, row.height, fill);
-          if (row.type === 'person') {
+          if (row.cells) {
             font(ctx, 400, 13, true);
             drawLines(ctx, row.cells[day][half], x + half * halfWidth, row.y, halfWidth, row.height, 17);
           }

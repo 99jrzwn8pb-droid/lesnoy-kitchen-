@@ -99,6 +99,7 @@
       ],
       shifts: SHIFT_PRESETS.map(shift => ({ ...shift })),
       weeks: {},
+      departmentWeeks: {},
       selectedWeek: monday(current),
       updatedAt: date.toISOString()
     };
@@ -153,12 +154,34 @@
       }
       weeks[key] = output;
     }
+    const departmentInput = input.departmentWeeks === undefined ? {} : input.departmentWeeks;
+    record(departmentInput, 'Строки цехов');
+    const departmentKeys = Object.keys(departmentInput);
+    if (departmentKeys.length > 1000) fail('В строках цехов больше 1000 недель.');
+    const departmentWeeks = {};
+    for (const key of departmentKeys) {
+      weekDates(key);
+      const rows = record(departmentInput[key], 'Строки цехов недели');
+      const rowKeys = Object.keys(rows);
+      if (rowKeys.length > 50) fail('В строках недели больше 50 цехов.');
+      const output = {};
+      for (const department of rowKeys) {
+        if (!departmentIds.has(department)) fail('В строке графика указан неизвестный цех.');
+        const row = rows[department];
+        if (!Array.isArray(row) || row.length !== 7) fail('В строке каждого цеха должно быть ровно 7 дней.');
+        output[department] = Array.from(row, shift => {
+          if (shift !== '' && !shiftIds.has(shift)) fail('В строке цеха указана неизвестная смена.');
+          return shift;
+        });
+      }
+      departmentWeeks[key] = output;
+    }
     weekDates(input.selectedWeek);
     if (typeof input.updatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.updatedAt) ||
       Number.isNaN(Date.parse(input.updatedAt)) || new Date(input.updatedAt).toISOString() !== input.updatedAt) {
       fail('В резервной копии неверное время сохранения.');
     }
-    return { version: 1, presetVersion, employees, departments, shifts, weeks, selectedWeek: input.selectedWeek, updatedAt: input.updatedAt };
+    return { version: 1, presetVersion, employees, departments, shifts, weeks, departmentWeeks, selectedWeek: input.selectedWeek, updatedAt: input.updatedAt };
   }
 
   function shiftLabelKey(label) {
@@ -183,8 +206,10 @@
     // не отменяются при повторном открытии сайта или импорте новой копии.
     if (next.presetVersion === 1) return next;
     const used = new Set();
-    for (const week of Object.values(next.weeks)) {
-      for (const row of Object.values(week)) for (const value of row) if (value) used.add(value);
+    for (const collection of [next.weeks, next.departmentWeeks]) {
+      for (const week of Object.values(collection)) {
+        for (const row of Object.values(week)) for (const value of row) if (value) used.add(value);
+      }
     }
     next.shifts = next.shifts.filter(shift => !retiredShift(shift) || used.has(shift.id));
     const ids = new Set(next.shifts.map(shift => shift.id));
