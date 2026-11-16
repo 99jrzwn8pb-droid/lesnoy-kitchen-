@@ -12,6 +12,11 @@
   const DAY_MS = 86400000;
   const RESERVED = new Set(['__proto__', 'prototype', 'constructor']);
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const SHIFT_PRESETS = [
+    { id: 'day', label: '10–22', color: '#e6eee6' },
+    { id: 'midday', label: '11:30–23:30', color: '#e4ebf5' },
+    { id: 'work', label: 'Р', color: '#f1f0ed' }
+  ];
 
   function fail(message) { throw new Error(message); }
   function record(value, label) {
@@ -85,19 +90,14 @@
     const date = current instanceof Date ? current : parseDate(current);
     return {
       version: 1,
+      presetVersion: 1,
       employees: [],
       departments: [
         { id: 'hot', name: 'Горячий цех' },
         { id: 'cold', name: 'Холодный цех' },
         { id: 'prep', name: 'Заготовочный цех' }
       ],
-      shifts: [
-        { id: 'day', label: '10–22', color: '#e6eee6' },
-        { id: 'late', label: '12–00', color: '#e4ebf5' },
-        { id: 'off', label: 'В', color: '#f1f0ed' },
-        { id: 'vacation', label: 'ОТ', color: '#e8e1ef' },
-        { id: 'sick', label: 'Б', color: '#f6e4df' }
-      ],
+      shifts: SHIFT_PRESETS.map(shift => ({ ...shift })),
       weeks: {},
       selectedWeek: monday(current),
       updatedAt: date.toISOString()
@@ -107,6 +107,8 @@
   function validateState(input) {
     record(input, 'Файл');
     if (input.version !== 1) fail('Эта версия резервной копии не поддерживается. Нужна версия 1.');
+    const presetVersion = input.presetVersion === undefined ? 0 : input.presetVersion;
+    if (presetVersion !== 0 && presetVersion !== 1) fail('Версия вариантов смен не поддерживается.');
     const departments = boundedList(input.departments, 50, 'Цеха').map(item => {
       record(item, 'Цех');
       return { id: id(item.id, 'Цех'), name: string(item.name, 80, 'Название цеха') };
@@ -122,7 +124,9 @@
       };
     });
     const employeeIds = unique(employees, 'Сотрудники');
-    const shifts = boundedList(input.shifts, 30, 'Смены').map(item => {
+    // Три дополнительных записи нужны только для обновления старого полного
+    // каталога: уже использованные обозначения остаются в истории графика.
+    const shifts = boundedList(input.shifts, presetVersion === 0 ? 30 : 33, 'Смены').map(item => {
       record(item, 'Смена');
       if (typeof item.color !== 'string' || !/^#[a-fA-F0-9]{6}$/.test(item.color)) fail('У смены неверный цвет.');
       return { id: id(item.id, 'Смена'), label: string(item.label, 24, 'Название смены'), color: item.color.toLowerCase() };
@@ -154,7 +158,45 @@
       Number.isNaN(Date.parse(input.updatedAt)) || new Date(input.updatedAt).toISOString() !== input.updatedAt) {
       fail('В резервной копии неверное время сохранения.');
     }
-    return { version: 1, employees, departments, shifts, weeks, selectedWeek: input.selectedWeek, updatedAt: input.updatedAt };
+    return { version: 1, presetVersion, employees, departments, shifts, weeks, selectedWeek: input.selectedWeek, updatedAt: input.updatedAt };
+  }
+
+  function shiftLabelKey(label) {
+    const text = String(label).trim().toLocaleUpperCase('ru-RU').replace(/\s+/g, '').replace(/[-—−]/g, '–');
+    const interval = text.match(/^(\d{1,2})(?::(\d{2}))?–(\d{1,2})(?::(\d{2}))?$/);
+    if (!interval) return text;
+    const start = interval[1].padStart(2, '0') + ':' + (interval[2] || '00');
+    const end = interval[3].padStart(2, '0') + ':' + (interval[4] || '00');
+    return start + '–' + end;
+  }
+  function retiredShift(shift) {
+    return ['В', 'ОТ', 'Б', '12:00–00:00'].includes(shiftLabelKey(shift.label));
+  }
+  function selectableShifts(state) {
+    const order = new Map(SHIFT_PRESETS.map((shift, index) => [shiftLabelKey(shift.label), index]));
+    return state.shifts.filter(shift => !retiredShift(shift)).sort((a, b) =>
+      (order.get(shiftLabelKey(a.label)) ?? 3) - (order.get(shiftLabelKey(b.label)) ?? 3));
+  }
+  function configureShiftPresets(input) {
+    const next = validateState(input);
+    // Однократное обновление: последующие пользовательские изменения вариантов
+    // не отменяются при повторном открытии сайта или импорте новой копии.
+    if (next.presetVersion === 1) return next;
+    const used = new Set();
+    for (const week of Object.values(next.weeks)) {
+      for (const row of Object.values(week)) for (const value of row) if (value) used.add(value);
+    }
+    next.shifts = next.shifts.filter(shift => !retiredShift(shift) || used.has(shift.id));
+    const ids = new Set(next.shifts.map(shift => shift.id));
+    for (const preset of SHIFT_PRESETS) {
+      if (next.shifts.some(shift => shiftLabelKey(shift.label) === shiftLabelKey(preset.label))) continue;
+      let shiftId = preset.id;
+      for (let number = 2; ids.has(shiftId); number++) shiftId = preset.id + '-' + number;
+      ids.add(shiftId);
+      next.shifts.push({ ...preset, id: shiftId });
+    }
+    next.presetVersion = 1;
+    return validateState(next);
   }
 
   function decode(raw) {
@@ -309,5 +351,5 @@
     return valid;
   }
 
-  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, mergeRoster, load, save };
+  return { STORAGE_KEY, BACKUP_KEY, createState, monday, addDays, weekDates, previousWeek, validateState, configureShiftPresets, selectableShifts, mergeRoster, load, save };
 });

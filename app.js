@@ -10,7 +10,9 @@
   try { storage = window.localStorage; } catch (_) { storage = null; }
   const loaded = C.load(storage);
   let state = loaded.state;
-  let brush = state.shifts[0]?.id || '';
+  let presetsError = null;
+  try { state = C.configureShiftPresets(state); } catch (error) { presetsError = error.message; }
+  let brush = C.selectableShifts(state)[0]?.id || '';
   let editMode = false;
   let history = [];
   let toastTimer;
@@ -119,13 +121,14 @@
     return Math.ceil((((d-yearStart)/86400000)+1)/7);
   }
   function render() {
-    if (!state.shifts.some((s) => s.id === brush)) brush = brush === '' ? '' : (state.shifts[0]?.id || '');
+    const choices = C.selectableShifts(state);
+    if (!choices.some((s) => s.id === brush)) brush = brush === '' ? '' : (choices[0]?.id || '');
     $('week-range').textContent = rangeLabel(); $('week-number').textContent = ' / ' + String(weekNumber(state.selectedWeek)).padStart(2,'0');
     $('week-date').value = state.selectedWeek;
     $('undo').disabled = !history.length || externalChange;
     $('edit-mode').setAttribute('aria-pressed',String(editMode));
     $('mode-hint').textContent = editMode ? 'Нажмите ячейку и задайте время смены' : brush === '' ? 'Нажимайте смены, которые нужно удалить' : 'Нажмите заполненную ячейку, чтобы изменить или удалить смену';
-    $('shift-palette').innerHTML = state.shifts.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Удалять смены нажатием на ячейку">⌫ Удалить смену</button>`;
+    $('shift-palette').innerHTML = choices.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Удалять смены нажатием на ячейку">⌫ Удалить смену</button>`;
     const dates = C.weekDates(state.selectedWeek);
     $('schedule-head').innerHTML = '<tr class="sheet-title-row"><th class="sheet-title" colspan="16">График кухни &quot;ЛЕСНОЙ&quot;</th></tr><tr class="sheet-days-row"><th class="employee-header" scope="col" rowspan="2">Фамилия Имя сотрудника</th><th scope="col" rowspan="2" class="phone-header">№ телефона</th>' + dates.map((_,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][i]}</th>`).join('') + '</tr><tr class="sheet-dates-row">' + dates.map((date,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${dateLabel(date,{day:'2-digit',month:'2-digit',year:'numeric'})}</th>`).join('') + '</tr>';
     $('schedule-body').innerHTML = state.departments.map((dep) => {
@@ -213,7 +216,7 @@
     });
   }
   function shiftList() {
-    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${state.shifts.map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
+    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${C.selectableShifts(state).map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
       body.querySelectorAll('[data-edit-shift]').forEach((b) => { b.onclick = () => shiftEditor(b.dataset.editShift); });
       body.querySelector('#new-shift').onclick = () => shiftEditor();
     });
@@ -247,7 +250,7 @@
     const person = state.employees.find((p) => p.id === personId);
     const current = row(personId)[day];
     const interval = intervalFromLabel(shiftById(current)?.label) || (!current ? intervalFromLabel(shiftById(brush)?.label) : null);
-    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${state.shifts.map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
+    modal('Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${C.selectableShifts(state).map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
       body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { if (applyShift(personId,day,b.dataset.pickShift,'Смена применена')) closeModal(); }; });
       body.querySelector('#delete-cell-shift').onclick = () => { if (applyShift(personId,day,'','Смена удалена')) closeModal(); };
       const form = body.querySelector('#interval-form');
@@ -316,6 +319,26 @@
     closeModal();
     return true;
   }
+  function applyContact(contact) {
+    if (contact?.type !== 'lesnoy-contact' || contact.version !== 1 || typeof contact.name !== 'string' || typeof contact.phone !== 'string') throw new Error('Неверный формат контакта.');
+    const nameKey = (name) => name.normalize('NFKC').toLocaleLowerCase('ru-RU').replace(/ё/g,'е').replace(/\s+/g,' ').trim();
+    const next = clone(state);
+    let roster = cachedRoster();
+    if (!next.employees.length && contact.roster) {
+      Object.assign(next,C.mergeRoster(next,contact.roster).state);
+      roster = clone(contact.roster);
+    }
+    const matches = next.employees.filter((person) => nameKey(person.name) === nameKey(contact.name));
+    if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько сотрудников с таким именем. Уточните контакт.' : 'Сотрудник не найден. Сначала восстановите состав команды.');
+    matches[0].phone = contact.phone.trim();
+    const updated = C.validateState(next);
+    if (!commit((target) => { Object.assign(target,updated); },'Телефон сотрудника обновлён.')) return;
+    if (roster) {
+      for (const person of roster.employees) if (nameKey(person.name) === nameKey(contact.name)) person.phone = contact.phone.trim();
+      try { storage.setItem(ROSTER_KEY,JSON.stringify(roster)); } catch (_) { /* основное сохранение проверено persist() */ }
+    }
+    closeModal();
+  }
   function rosterPreview(roster) {
     const preview = C.mergeRoster(state,roster);
     const departments = new Map(roster.departments.map((d) => [d.id,d.name]));
@@ -327,13 +350,15 @@
   }
   function importParsed(parsed) {
     if (parsed?.type === 'lesnoy-roster') { rosterPreview(parsed); return; }
-    const incoming = C.validateState(parsed);
+    if (parsed?.type === 'lesnoy-contact') { applyContact(parsed); return; }
+    const incoming = C.configureShiftPresets(C.validateState(parsed));
     if (!confirm(`Импортировать ${incoming.employees.length} сотрудников и ${Object.keys(incoming.weeks).length} недель? Весь текущий график, сотрудники и варианты смен будут заменены. Рекомендуем сначала скачать JSON текущих данных. Замену можно отменить кнопкой «Отменить».`)) return;
     if (commit((next) => { Object.keys(next).forEach((key) => delete next[key]); Object.assign(next,incoming); },'Резервная копия импортирована')) closeModal();
   }
   function importRosterLink() {
+    const contactUpdate = location.hash.startsWith('#contact=');
     const restoring = location.hash.startsWith('#restore-roster=');
-    const prefix = restoring ? '#restore-roster=' : '#roster=';
+    const prefix = contactUpdate ? '#contact=' : restoring ? '#restore-roster=' : '#roster=';
     if (!location.hash.startsWith(prefix)) return;
     const encoded = location.hash.slice(prefix.length);
     // Фрагмент после # обрабатывается только браузером и не отправляется хостингу.
@@ -346,10 +371,11 @@
       const raw = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
       const decoded = new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(raw,(c) => c.charCodeAt(0)));
       const roster = JSON.parse(decoded);
+      if (contactUpdate) { applyContact(roster); return; }
       if (roster?.type !== 'lesnoy-roster') throw new Error('В ссылке нет списка сотрудников.');
       if (restoring) applyRoster(roster,'Сотрудники, цеха и телефоны восстановлены.');
       else rosterPreview(roster);
-    } catch (error) { toast('Команда не импортирована: ' + (error instanceof SyntaxError ? 'повреждённые данные' : error.message)); }
+    } catch (error) { toast('Изменения не применены: ' + (error instanceof SyntaxError ? 'повреждённые данные' : error.message)); }
   }
   async function importJSON(file) {
     if (!file) return;
@@ -447,7 +473,7 @@
     if (arrows[event.key]) { event.preventDefault(); const [i,d] = arrows[event.key]; if (people[i] && d>=0 && d<7) focusCell(people[i].id,d); }
     else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applyShift(b.dataset.person,day,''); }
     else if (event.key === 'F2') { event.preventDefault(); cellEditor(b.dataset.person,day); }
-    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = state.shifts[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(b.dataset.person,day,false); toast('Выбрана смена: ' + s.label); } }
+    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = C.selectableShifts(state)[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(b.dataset.person,day,false); toast('Выбрана смена: ' + s.label); } }
   };
   $('schedule-body').addEventListener('paste',pasteRange);
   document.addEventListener('keydown',(event) => {
@@ -483,6 +509,10 @@
     $('save-status').textContent = loaded.recovered ? 'Восстановлено из копии' : 'Проверьте данные';
     $('save-status').classList.add('error');
     showWarning(loaded.error + (loaded.recovered ? ' Загружена предыдущая сохранённая копия. Проверьте последние изменения.' : ' Исходные данные не перезаписаны. Если это первое открытие, добавьте сотрудников или импортируйте JSON.'));
+  } else if (presetsError) {
+    $('save-status').textContent = 'Проверьте смены';
+    $('save-status').classList.add('error');
+    showWarning('Не удалось обновить набор смен. Существующий график оставлен без изменений. ' + presetsError);
   } else persist();
   importRosterLink();
 })();
