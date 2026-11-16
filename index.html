@@ -7,12 +7,16 @@
   <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=20261116">
+  <link rel="stylesheet" href="style.css?v=20261116-monthly2">
   <script src="core.js?v=11" defer></script>
   <script src="png.js?v=14" defer></script>
   <script src="viewport.js?v=7" defer></script>
-  <script src="app.js?v=11" defer></script>
-  <script src="timesheet.js?v=20261116" defer></script>
+  <script src="app.js?v=12" defer></script>
+  <script src="vendor/exceljs-4.4.0.min.js" defer></script>
+  <script src="timesheet-core.js?v=2" defer></script>
+  <script src="timesheet-io.js?v=2" defer></script>
+  <script src="timesheet-viewport.js?v=2" defer></script>
+  <script src="timesheet.js?v=2" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -31,7 +35,7 @@
     <h1 class="sr-only">Редактор графика кухни</h1>
     <div id="storage-warning" class="warning" role="alert" hidden></div>
 
-    <div class="ts-switch"><button id="ts-open" class="button primary">Открыть табель за месяц</button></div>
+    <nav class="view-switch" aria-label="Вид таблицы"><button id="ts-back" class="button small" aria-pressed="true">Недельный график</button><button id="ts-open" class="button small" aria-pressed="false">Месячный табель</button></nav>
     <section id="schedule-panel" class="schedule-card" aria-label="Недельный график">
       <div class="week-toolbar">
         <div class="week-picker">
@@ -62,19 +66,15 @@
 
     <section id="ts-panel" class="schedule-card" hidden aria-label="Месячный табель">
       <div class="ts-controls">
-        <button id="ts-back" class="button">← График</button>
-        <h2>Табель кухни</h2>
-        <button id="ts-prev" class="button">‹</button><input id="ts-month" type="month" aria-label="Месяц табеля"><button id="ts-next" class="button">›</button>
-        <button id="ts-import-week" class="button primary">Добавить прошлую неделю</button>
-        <button id="ts-confirm" class="button">Подтвердить месяц</button>
-        <button id="ts-export" class="button">CSV</button>
-        <button id="ts-backup" class="button">Полная копия JSON</button>
-        <button id="ts-restore" class="button">Загрузить табель JSON</button>
-        <input id="ts-file" type="file" accept=".json,application/json" hidden>
+        <div class="ts-month-picker"><button id="ts-prev" class="button square" aria-label="Предыдущий месяц">‹</button><label class="ts-month-label"><span id="ts-month-label"></span><input id="ts-month" type="month" min="1900-01" max="2199-12" lang="ru" aria-label="Месяц табеля"></label><button id="ts-next" class="button square" aria-label="Следующий месяц">›</button></div>
+        <div class="ts-actions"><button id="ts-import-week" class="button small">Из графика</button><button id="ts-confirm" class="button small">Подтвердить месяц</button><button id="ts-restore" class="button small primary">Импорт Excel / JSON</button><button id="ts-export" class="button small">Excel</button><button id="ts-png" class="button small">PNG</button><button id="ts-backup" class="button small" title="Полная копия графика и табеля">JSON</button></div>
       </div>
-      <p id="ts-status"></p>
-      <div id="ts-body" class="ts-scroll"></div>
-      <p class="privacy-note">Табель хранится отдельно от графика в этом браузере. Кнопка «Полная копия JSON» сохраняет оба раздела. Для изменения ставки нажмите на имя, для корректировки дня — на ячейку, для ручной суммы — на выплату.</p>
+      <div class="ts-paint"><span>Смены:</span><div id="ts-palette" class="palette" role="group" aria-label="Количество смен для заполнения"></div><label class="ts-check"><input id="ts-brush-confirmed" type="checkbox" checked>Факт</label><button id="ts-undo" class="button subtle small" disabled>↶ Отменить</button><button id="ts-addemployee" class="button subtle small">＋ Сотрудник</button></div>
+      <div class="ts-view-controls"><label class="ts-check"><input id="ts-freeze" type="checkbox" checked>Закрепить</label><div class="zoom-controls"><button id="ts-zoom-out" class="button small" aria-label="Уменьшить табель">−</button><output id="ts-zoom-level" aria-live="polite">100%</output><button id="ts-zoom-in" class="button small" aria-label="Увеличить табель">+</button><button id="ts-zoom-fit" class="button small">Весь табель</button></div></div>
+      <div id="ts-warning" class="warning" role="alert" hidden></div>
+      <div id="ts-body" class="ts-scroll canvas-viewport" tabindex="0" aria-label="Табель с масштабированием и перемещением"><div id="ts-surface" class="ts-surface"><table id="ts-table" class="ts-table" aria-label="Смены, ставки и выплаты сотрудников за месяц"></table></div></div>
+      <div class="ts-bottom"><span id="ts-status" role="status"></span><button id="ts-retry-save" class="text-button" hidden>Повторить сохранение</button><button id="ts-csv" class="text-button">CSV</button></div>
+      <input id="ts-file" type="file" accept=".xlsx,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     </section>
     <footer class="page-footer"><span>Только на этом устройстве <span class="footer-separator">·</span> Без регистрации</span><button id="backup-shortcut" class="text-button">Сохранить резервную копию ↗</button></footer>
     <p class="privacy-note">Данные хранятся в этом браузере и не синхронизируются между iPhone и Mac. Для переноса используйте JSON.</p>
@@ -82,6 +82,7 @@
   </main>
 
   <dialog id="editor-dialog" aria-labelledby="dialog-title"><div class="dialog-top"><h2 id="dialog-title"></h2><button id="close-dialog" class="button square subtle" aria-label="Закрыть окно">×</button></div><div id="dialog-body"></div></dialog>
+  <dialog id="ts-dialog" aria-labelledby="ts-dialog-title"><div class="dialog-top"><h2 id="ts-dialog-title"></h2><button id="ts-dialog-close" class="button square subtle" aria-label="Закрыть окно табеля">×</button></div><div id="ts-dialog-body"></div></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
   <input id="import-file" type="file" accept=".json,application/json" hidden>
 </body>

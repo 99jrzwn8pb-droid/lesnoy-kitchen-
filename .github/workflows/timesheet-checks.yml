@@ -1,19 +1,46 @@
-name: Timesheet checks
+name: Проверка графика и табеля
 on:
   push:
-    branches: [feature/monthly-timesheet]
+    branches: [main, feature/monthly-timesheet]
   pull_request:
-    paths:
-      - 'timesheet.js'
-      - 'tests/**'
-      - 'index.html'
+permissions:
+  contents: read
 jobs:
-  smoke:
+  calculations-and-storage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: node --check timesheet.js
-      - run: node --test tests/timesheet.test.cjs
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  chromium-and-webkit:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/lesnoy-browsers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install playwright==1.62.0
+      - run: python -m playwright install --with-deps chromium webkit
+      - name: Запустить статический сайт
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 > /tmp/lesnoy-http.log 2>&1 &
+          python - <<'PY'
+          import time
+          from urllib.request import urlopen
+          for attempt in range(20):
+              try:
+                  with urlopen('http://127.0.0.1:8765/index.html', timeout=2) as response:
+                      assert response.status == 200
+                  break
+              except Exception:
+                  if attempt == 19:
+                      raise
+                  time.sleep(.25)
+          PY
+      - run: python tests/browser-monthly.py

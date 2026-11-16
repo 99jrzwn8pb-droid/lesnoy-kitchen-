@@ -1,0 +1,22 @@
+{
+  "name": "lesnoy-kitchen",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Локальный недельный график и месячный табель кухни ЛЕСНОЙ",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:core": "node tests/core.test.cjs",
+    "test:png": "node tests/png.test.cjs",
+    "test:ui": "node tests/ui.test.cjs",
+    "test:viewport": "node tests/viewport.test.cjs",
+    "test:timesheet": "node --test tests/timesheet*.test.cjs",
+    "test:browser": "python tests/browser-monthly.py"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "1.0.13",
+    "jsdom": "31.0.1"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  }
+}

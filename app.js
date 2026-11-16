@@ -529,6 +529,7 @@
   };
   $('schedule-body').addEventListener('paste',pasteRange);
   document.addEventListener('keydown',(event) => {
+    if ($('schedule-panel')?.hidden) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !dialog.open && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) { event.preventDefault(); undo(); }
   });
   $('prev-week').onclick = () => moveWeek(-7);
@@ -555,6 +556,7 @@
     showWarning('Данные изменены в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения. При необходимости сохраните текущий график в JSON и загрузите данные из другой вкладки.',true); render();
   });
   window.addEventListener('hashchange',importRosterLink);
+  window.LesnoySchedule = { getState: () => C.validateState(state), refresh: () => scheduleViewport?.refresh() };
   render();
   initScheduleViewport();
   if (loaded.error) {

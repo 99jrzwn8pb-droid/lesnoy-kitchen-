@@ -1,4 +1,7 @@
+node_modules/
 .DS_Store
+*.zip
 *backup*.json
 *резерв*.json
 private/
+tests/artifacts/
