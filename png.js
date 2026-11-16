@@ -7,8 +7,8 @@
   const EDGE = 1;
   const INNER = WIDTH - EDGE * 2;
   const TITLE_HEIGHT = 38;
-  const DAY_HEIGHT = 28;
-  const DATE_HEIGHT = 26;
+  const DAY_HEIGHT = 26;
+  const DATE_HEIGHT = 24;
   const C = { ink: '#000000', line: '#000000', paper: '#ffffff', weekend: '#ffff66' };
   const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
@@ -111,7 +111,7 @@
     const rows = [];
     let y = bodyY;
     function shiftCells(values) {
-      font(ctx, 400, 13, true);
+      font(ctx, 400, 14, true);
       return dates.map((_, day) => {
         const shift = shifts.get((values || [])[day]);
         const parts = splitShift(shift ? shift.label : '');
@@ -124,21 +124,21 @@
       const employees = state.employees.filter(person => person.department === department.id);
       const departmentValues = departmentWeek[department.id] || [];
       if (!employees.length && state.employees.length && !departmentValues.some(value => shifts.has(value))) return;
-      font(ctx, 700, 15, true);
+      font(ctx, 700, 16, true);
       const groupLines = wrap(ctx, department.name, leftWidth - 12);
       const groupCells = shiftCells(departmentValues);
       const groupCellLines = Math.max(...groupCells.flat().map(lines => lines.length));
-      const groupHeight = Math.max(28, groupLines.length * 18 + 10, groupCellLines * 17 + 11);
+      const groupHeight = Math.max(26, groupLines.length * 19 + 7, groupCellLines * 17 + 9);
       rows.push({ type: 'department', text: groupLines, cells: groupCells, y, height: groupHeight });
       y += groupHeight;
       employees.forEach(person => {
-        font(ctx, 400, 14, true);
+        font(ctx, 400, 15, true);
         const nameLines = wrap(ctx, person.name, nameWidth - 10);
         font(ctx, 400, 13, true);
         const phoneLines = includePhones ? wrap(ctx, person.phone || '', phoneWidth - 6) : [];
         const cells = shiftCells(week[person.id]);
         const lineCount = Math.max(nameLines.length, phoneLines.length, ...cells.flat().map(lines => lines.length));
-        const height = Math.max(30, lineCount * 17 + 13);
+        const height = Math.max(28, lineCount * 18 + 10);
         rows.push({ type: 'person', nameLines, phoneLines, cells, y, height });
         y += height;
       });
@@ -158,21 +158,21 @@
 
     // Объединённая строка заголовка и двухстрочная шапка, как в исходном Excel.
     cell(ctx, EDGE, EDGE, INNER, TITLE_HEIGHT, C.paper, 1.5);
-    font(ctx, 700, 25, true);
+    font(ctx, 700, 26, true);
     drawLines(ctx, ['График кухни "ЛЕСНОЙ"'], EDGE, EDGE, INNER, TITLE_HEIGHT, 30);
     cell(ctx, EDGE, headerY, nameWidth, DAY_HEIGHT + DATE_HEIGHT, C.paper, 1.5);
-    font(ctx, 400, 14);
-    drawLines(ctx, wrap(ctx, 'Фамилия Имя сотрудника', nameWidth - 12), EDGE, headerY, nameWidth, DAY_HEIGHT + DATE_HEIGHT, 17);
+    font(ctx, 400, 15);
+    drawLines(ctx, wrap(ctx, 'Фамилия Имя сотрудника', nameWidth - 12), EDGE, headerY, nameWidth, DAY_HEIGHT + DATE_HEIGHT, 18);
     if (includePhones) {
       cell(ctx, EDGE + nameWidth, headerY, phoneWidth, DAY_HEIGHT + DATE_HEIGHT, C.paper, 1.5);
-      drawLines(ctx, ['№ телефона'], EDGE + nameWidth, headerY, phoneWidth, DAY_HEIGHT + DATE_HEIGHT, 17);
+      drawLines(ctx, ['№ телефона'], EDGE + nameWidth, headerY, phoneWidth, DAY_HEIGHT + DATE_HEIGHT, 18);
     }
     dates.forEach((date, day) => {
       const x = dayStart + day * dayWidth;
       const fill = day === 4 || day === 5 ? C.weekend : C.paper;
       cell(ctx, x, headerY, dayWidth, DAY_HEIGHT, fill, 1.5);
-      font(ctx, 700, 15, true);
-      drawLines(ctx, [DAYS[day]], x, headerY, dayWidth, DAY_HEIGHT, 18);
+      font(ctx, 700, 16, true);
+      drawLines(ctx, [DAYS[day]], x, headerY, dayWidth, DAY_HEIGHT, 19);
       cell(ctx, x, headerY + DAY_HEIGHT, dayWidth, DATE_HEIGHT, fill, 1.5);
       font(ctx, 700, 15);
       drawLines(ctx, [displayDate(date)], x, headerY + DAY_HEIGHT, dayWidth, DATE_HEIGHT, 18);
@@ -181,18 +181,18 @@
     rows.forEach(row => {
       if (row.type === 'empty') {
         cell(ctx, EDGE, row.y, INNER, row.height, C.paper, 1.5);
-        font(ctx, 400, 14, true);
+        font(ctx, 400, 15, true);
         drawLines(ctx, ['Добавьте сотрудников и заполните график'], EDGE, row.y, INNER, row.height, 18);
         return;
       }
       if (row.type === 'department') {
         cell(ctx, EDGE, row.y, leftWidth, row.height, C.paper, 1.5);
-        font(ctx, 700, 15, true);
-        drawLines(ctx, row.text, EDGE, row.y, leftWidth, row.height, 18);
+        font(ctx, 700, 16, true);
+        drawLines(ctx, row.text, EDGE, row.y, leftWidth, row.height, 19);
       } else {
         cell(ctx, EDGE, row.y, nameWidth, row.height, C.paper, 1.5);
-        font(ctx, 400, 14, true);
-        drawLines(ctx, row.nameLines, EDGE, row.y, nameWidth, row.height, 17);
+        font(ctx, 400, 15, true);
+        drawLines(ctx, row.nameLines, EDGE, row.y, nameWidth, row.height, 18);
         if (includePhones) {
           cell(ctx, EDGE + nameWidth, row.y, phoneWidth, row.height, C.paper, 1.5);
           font(ctx, 400, 13, true);
@@ -205,7 +205,7 @@
         for (let half = 0; half < 2; half++) {
           cell(ctx, x + half * halfWidth, row.y, halfWidth, row.height, fill);
           if (row.cells) {
-            font(ctx, 400, 13, true);
+            font(ctx, 400, 14, true);
             drawLines(ctx, row.cells[day][half], x + half * halfWidth, row.y, halfWidth, row.height, 17);
           }
         }
