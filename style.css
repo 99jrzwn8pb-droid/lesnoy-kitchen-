@@ -49,3 +49,24 @@ html.sheet-app,html.sheet-app body{width:100%;height:100%;overflow:hidden;oversc
 @media(max-width:650px){.sheet-app .topbar{padding:6px 8px;gap:8px}.sheet-app .top-actions{gap:6px}.sheet-app .top-actions #export-png{font-size:11px;min-height:34px;padding:6px 8px}.sheet-app #export-png .export-full{display:none}.sheet-app #save-status{width:8px;flex:0 0 8px;overflow:hidden;color:transparent}.sheet-app main{padding:5px}.sheet-app .brand strong{font-size:15px}.sheet-app .week-toolbar{padding:6px;gap:5px}.sheet-app .week-picker{gap:5px}.sheet-app .week-picker .square{width:28px;min-height:30px}.sheet-app .date-control strong{font-size:14px}.sheet-app .week-label{min-width:0}.sheet-app #today span,.sheet-app #copy-week span{display:none}.sheet-app #today,.sheet-app #copy-week{width:30px;min-height:30px;padding:5px;flex:0 0 30px}.sheet-app .paint-toolbar{display:grid;grid-template-columns:auto auto minmax(0,1fr);padding:5px 6px;gap:3px 6px}.sheet-app .palette{grid-column:1/-1;width:100%;padding-bottom:2px}.sheet-app .palette .shift-chip{min-height:30px;padding:4px 8px}.sheet-app .paint-toolbar>#manage-shifts{margin:0}.sheet-app .paint-toolbar>.button{min-height:28px;padding:4px 7px}.sheet-app .undo{justify-self:end}.sheet-app .table-hint>span:first-child{display:none}.sheet-app .table-hint{justify-content:space-between;min-height:34px}.sheet-app .table-hint::before{content:"Масштаб";font-size:10px;color:#666}.sheet-app .table-bottom{font-size:10px;padding:2px 4px;gap:6px}.sheet-app .roster-actions .button{padding:4px 6px}.sheet-app .weekend-note{font-size:8px}}
 @media(max-height:500px){.sheet-app .topbar{min-height:40px;padding-top:3px;padding-bottom:3px}.sheet-app main{padding:4px}.sheet-app .week-toolbar{padding-top:3px;padding-bottom:3px}.sheet-app .paint-toolbar{padding-top:3px;padding-bottom:3px}.sheet-app .table-hint{min-height:28px;padding-top:1px;padding-bottom:1px}.sheet-app .table-bottom{min-height:28px}.sheet-app .palette .shift-chip,.sheet-app .paint-toolbar>.button{min-height:26px;padding-top:3px;padding-bottom:3px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+
+/* Месячный табель */
+[hidden] { display:none !important; }
+.ts-switch { margin:12px 0; }
+.ts-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:14px; }
+.ts-controls h2 { margin:0 12px 0 0; font-size:20px; }
+.ts-controls input { padding:9px; max-width:180px; }
+.ts-scroll { overflow:auto; max-width:100%; padding:8px; }
+.ts-table { border-collapse:collapse; font-size:12px; white-space:nowrap; width:max-content; min-width:100%; }
+.ts-table th,.ts-table td { border:1px solid #aaa; padding:3px; text-align:center; }
+.ts-table thead th,.ts-table tfoot th { background:#f0f0f0; }
+.ts-table .ts-name { position:sticky; left:0; z-index:2; background:white; min-width:160px; text-align:left; }
+.ts-table thead .ts-name { background:#f0f0f0; }
+.ts-name button,.ts-table td:last-child button { border:0; background:transparent; cursor:pointer; font:inherit; text-align:left; }
+.ts-name small { display:block; color:#666; font-size:10px; }
+.ts-cell { width:30px; min-height:30px; border:0; background:transparent; cursor:pointer; }
+.ts-cell.ts-draft { background:#fff0ae; }
+.ts-cell.ts-confirmed { background:#d8f1dd; }
+#ts-status { padding:0 14px; color:#555; }
+@media(max-width:650px){ .ts-controls { gap:6px; padding:8px; } .ts-controls h2 { width:100%; } }
