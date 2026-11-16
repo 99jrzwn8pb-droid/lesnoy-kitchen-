@@ -24,11 +24,12 @@ function validate(b){
   if(!validId(id)||!obj(months))throw Error('Неверная корректировка');
   for(const [m,v] of Object.entries(months))if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)||!Number.isFinite(v)||v<0||v>10000000)throw Error('Неверная выплата');
  }
+ if(b.roster!==undefined){if(!Array.isArray(b.roster)||b.roster.length>100||b.roster.some(p=>!obj(p)||!validId(p.id)||typeof p.name!=='string'||p.name.length>100||typeof p.role!=='string'||p.role.length>100))throw Error('Неверный список сотрудников');}
  return b;
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(book));render();}catch(e){alert('Не удалось сохранить табель: '+e.message);}}
 function state(){return C.load(localStorage).state;}
-function employees(){const s=state();return s.departments.flatMap(d=>s.employees.filter(p=>p.department===d.id));}
+function employees(){const s=state();const planned=s.departments.flatMap(d=>s.employees.filter(p=>p.department===d.id));const roster=book.roster||[];return [...roster,...planned.filter(p=>!roster.some(r=>r.id===p.id||r.name.trim()===p.name.trim()))];}
 function dayCount(m){const [y,mo]=m.split('-').map(Number);return new Date(Date.UTC(y,mo,0)).getUTCDate();}
 function dateOf(m,d){return m+'-'+String(d).padStart(2,'0');}
 function num(v){return Number.isFinite(Number(v))?Number(v):0;}
@@ -38,14 +39,14 @@ function cell(id,date){return book.days[id]?.[date];}
 function paid(id,m){let total=0;for(let d=1;d<=dayCount(m);d++){const x=cell(id,dateOf(m,d));if(x?.confirmed)total+=num(x.value);}return total;}
 function amount(id,m){const p=profile(id),override=book.overrides[id]?.[m];return override!==undefined?num(override):p.type==='salary'?num(p.rate):paid(id,m)*num(p.rate);}
 function render(){
- const list=employees(), days=dayCount(month), headings=Array.from({length:days},(_,i)=>'<th>'+String(i+1)+'</th>').join('');
+ const list=employees(), days=dayCount(month), headings=Array.from({length:days},(_,i)=>{const d=i+1,wd=new Date(month+'-'+String(d).padStart(2,'0')+'T12:00:00Z').getUTCDay();return '<th class="'+(wd===0||wd===6?'ts-weekend':'')+'">'+d+'<small>'+['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][wd]+'</small></th>';}).join('');
  $('ts-month').value=month;
  $('ts-body').innerHTML='<table class="ts-table"><thead><tr><th class="ts-name">Сотрудник</th>'+headings+'<th>Смены</th><th>Оплата</th></tr></thead><tbody>'+list.map(p=>{
  const profileData=profile(p.id),cells=Array.from({length:days},(_,i)=>{
  const date=dateOf(month,i+1),x=cell(p.id,date);
  return '<td><button class="ts-cell '+(x?.confirmed?'ts-confirmed':x?'ts-draft':'')+'" data-person="'+esc(p.id)+'" data-date="'+date+'" title="'+esc(x?.note||'Нажмите для редактирования')+'">'+(x?esc(x.value):'·')+'</button></td>';
  }).join('');
- return '<tr><th class="ts-name"><button data-rate="'+esc(p.id)+'">'+esc(p.name)+'</button><small>'+(profileData.type==='salary'?'Оклад':'За смену')+': '+money(profileData.rate)+'</small></th>'+cells+'<td>'+paid(p.id,month)+'</td><td><button data-pay="'+esc(p.id)+'">'+money(amount(p.id,month))+'</button></td></tr>';
+ return '<tr><th class="ts-name"><button data-rate="'+esc(p.id)+'">'+esc(p.name)+'</button><small>'+(p.role?esc(p.role)+' · ':'')+'+(profileData.type==='salary'?'Оклад':'За смену')+': '+money(profileData.rate)+'</small></th>'+cells+'<td>'+paid(p.id,month)+'</td><td><button data-pay="'+esc(p.id)+'">'+money(amount(p.id,month))+'</button></td></tr>';
  }).join('')+'</tbody><tfoot><tr><th>ФОТ</th><td colspan="'+days+'"></td><td></td><th>'+money(list.reduce((a,p)=>a+amount(p.id,month),0))+'</th></tr></tfoot></table>';
  $('ts-status').textContent='Подтверждённые смены учитываются в зарплате. Черновики отмечены жёлтым.';
 }
@@ -120,6 +121,6 @@ $('ts-confirm').onclick=confirmMonth;
 $('ts-export').onclick=exportCSV;
 $('ts-backup').onclick=backup;
 $('ts-restore').onclick=()=>$('ts-file').click();
-$('ts-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const parsed=JSON.parse(await f.text());const combined=parsed.type==='lesnoy-combined-backup'&&parsed.version===1;const next=validate(combined?parsed.timesheet:parsed);const schedule=combined?C.validateState(parsed.schedule):null;if(!confirm(combined?'Заменить график И табель из полной копии?':'Заменить ВЕСЬ табель из резервной копии?'))return;if(schedule){C.save(localStorage,schedule);book=next;save();alert('График и табель восстановлены. Страница перезагрузится.');location.reload();}else{book=next;save();}}catch(err){alert('Не удалось импортировать: '+err.message);}};
+$('ts-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const parsed=JSON.parse(await f.text());const combined=parsed.type==='lesnoy-combined-backup'&&parsed.version===1;const next=validate(combined?parsed.timesheet:parsed);const schedule=combined?C.validateState(parsed.schedule):null;if(!confirm(combined?'Заменить график И табель из полной копии?':'Загрузить табель из файла? Текущий табель будет заменён, недельный график останется без изменений.'))return;if(schedule){C.save(localStorage,schedule);book=next;save();alert('График и табель восстановлены. Страница перезагрузится.');location.reload();}else{book=next;save();}}catch(err){alert('Не удалось импортировать: '+err.message);}};
 $('ts-body').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.rate)editRate(b.dataset.rate);else if(b.dataset.pay)editPay(b.dataset.pay);else if(b.dataset.person)editCell(b.dataset.person,b.dataset.date);};
 })();
