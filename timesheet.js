@@ -11,7 +11,7 @@ function validate(b){
  if(!b||b.version!==1||!['people','days','confirmed','overrides'].every(k=>b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])))throw Error('Неверный формат табеля');
  return b;
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(book));render();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(book));render();}catch(e){alert('Не удалось сохранить табель: '+e.message);}}
 function state(){return C.load(localStorage).state;}
 function employees(){const s=state();return s.departments.flatMap(d=>s.employees.filter(p=>p.department===d.id));}
 function dayCount(m){const [y,mo]=m.split('-').map(Number);return new Date(Date.UTC(y,mo,0)).getUTCDate();}
@@ -68,7 +68,7 @@ function importWeek(){
  if(!entries.length)return alert('На выбранной неделе нет смен сотрудников');
  if(!confirm('Перенести '+entries.length+' записей из графика за '+week+'?\nСуществующие записи: '+conflicts+'. Они НЕ будут перезаписаны. Все новые записи останутся черновиками.'))return;
  let added=0;for(const x of entries){if(cell(x.id,x.date)!==undefined)continue;(book.days[x.id] ||= {})[x.date]={value:x.value,note:x.note,confirmed:false};added++;}
- month=dates[0].slice(0,7);save();alert('Добавлено '+added+' черновиков. Проверьте и подтвердите фактические смены.');
+ month=dates[0].slice(0,7);save();alert('Добавлено '+added+' черновиков. При переходе через границу месяца записи сохранены по своим датам. Проверьте и подтвердите смены.');
 }
 function confirmMonth(){
  if(!confirm('Подтвердить все черновики за '+month+'? Проверьте замены и невыходы перед подтверждением.'))return;
@@ -94,7 +94,7 @@ function exportCSV(){
  rows.push(['ФОТ',...Array(n+3).fill(''),list.reduce((a,p)=>a+amount(p.id,month),0)]);
  download('Лесной-табель-'+month+'.csv','\ufeff'+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n'),'text/csv;charset=utf-8');
 }
-function backup(){download('Лесной-табель-backup.json',JSON.stringify(book,null,2),'application/json');}
+function backup(){const full={type:'lesnoy-combined-backup',version:1,schedule:state(),timesheet:book};download('Лесной-полная-копия.json',JSON.stringify(full,null,2),'application/json');}
 $('ts-open').onclick=()=>{$('ts-panel').hidden=false;$('schedule-panel').hidden=true;render();};
 $('ts-back').onclick=()=>{$('ts-panel').hidden=true;$('schedule-panel').hidden=false;};
 $('ts-month').onchange=e=>{if(/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)){month=e.target.value;render();}};
@@ -105,6 +105,6 @@ $('ts-confirm').onclick=confirmMonth;
 $('ts-export').onclick=exportCSV;
 $('ts-backup').onclick=backup;
 $('ts-restore').onclick=()=>$('ts-file').click();
-$('ts-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const next=validate(JSON.parse(await f.text()));if(confirm('Заменить ВЕСЬ табель данными из резервной копии? Сначала сохраните текущую копию.')){book=next;save();}}catch(err){alert('Не удалось импортировать: '+err.message);}};
+$('ts-file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const parsed=JSON.parse(await f.text());const combined=parsed.type==='lesnoy-combined-backup'&&parsed.version===1;const next=validate(combined?parsed.timesheet:parsed);const schedule=combined?C.validateState(parsed.schedule):null;if(!confirm(combined?'Заменить график И табель из полной копии?':'Заменить ВЕСЬ табель из резервной копии?'))return;if(schedule){C.save(localStorage,schedule);book=next;save();alert('График и табель восстановлены. Страница перезагрузится.');location.reload();}else{book=next;save();}}catch(err){alert('Не удалось импортировать: '+err.message);}};
 $('ts-body').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.rate)editRate(b.dataset.rate);else if(b.dataset.pay)editPay(b.dataset.pay);else if(b.dataset.person)editCell(b.dataset.person,b.dataset.date);};
 })();
