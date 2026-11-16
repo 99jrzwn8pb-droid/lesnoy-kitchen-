@@ -6,12 +6,28 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clone = (s) => JSON.parse(JSON.stringify(s));
+  function nationalPhoneFormat(value) {
+    if (typeof value !== 'string' || !/^\+7[\d\s().–—-]*$/.test(value.trim())) return value;
+    const digits = value.replace(/\D/g,'');
+    if (digits.length !== 11) return value;
+    return '8-' + digits.slice(1,4) + '-' + digits.slice(4,7) + '-' + digits.slice(7,9) + '-' + digits.slice(9);
+  }
+  function normalizeEmployeePhones(container) {
+    let changed = false;
+    if (!Array.isArray(container?.employees)) return changed;
+    for (const person of container.employees) {
+      const phone = nationalPhoneFormat(person.phone);
+      if (phone !== person.phone) { person.phone = phone; changed = true; }
+    }
+    return changed;
+  }
   let storage;
   try { storage = window.localStorage; } catch (_) { storage = null; }
   const loaded = C.load(storage);
   let state = loaded.state;
   let presetsError = null;
   try { state = C.configureShiftPresets(state); } catch (error) { presetsError = error.message; }
+  if (normalizeEmployeePhones(state)) state.updatedAt = new Date().toISOString();
   let brush = C.selectableShifts(state)[0]?.id || '';
   let editMode = false;
   let history = [];
@@ -75,6 +91,7 @@
     const next = clone(state);
     try {
       change(next);
+      normalizeEmployeePhones(next);
       next.updatedAt = new Date().toISOString();
       state = C.validateState(next);
     } catch (error) { toast(error.message); return false; }
@@ -304,18 +321,26 @@
     download(new Blob([JSON.stringify(state,null,2)],{type:'application/json;charset=utf-8'}),'lesnoy-backup-' + new Date().toISOString().slice(0,10) + '.json');
     toast('Резервная копия подготовлена. Храните JSON в личных файлах.');
   }
-  function cachedRoster() {
+  function cachedRoster(persistFormat = false) {
     try {
       const roster = JSON.parse(storage.getItem(ROSTER_KEY));
       C.mergeRoster(C.createState(),roster);
+      if (normalizeEmployeePhones(roster) && persistFormat) {
+        try { storage.setItem(ROSTER_KEY,JSON.stringify(roster)); } catch (_) { /* основное сохранение проверяется отдельно */ }
+      }
       return roster;
     } catch (_) { return null; }
+  }
+  function writeRosterCache(roster) {
+    const recovery = clone(roster);
+    normalizeEmployeePhones(recovery);
+    try { storage.setItem(ROSTER_KEY,JSON.stringify(recovery)); } catch (_) { /* основное сохранение проверено persist() */ }
   }
   function applyRoster(roster, message) {
     if (!commit((next) => { Object.assign(next,C.mergeRoster(next,roster).state); },message)) return false;
     // Отдельная локальная копия команды позволяет вернуть имена и телефоны,
     // даже если пользователь очистил сотрудников в основном графике.
-    try { storage.setItem(ROSTER_KEY,JSON.stringify(roster)); } catch (_) { /* основное сохранение уже проверено persist() */ }
+    writeRosterCache(roster);
     closeModal();
     return true;
   }
@@ -335,7 +360,7 @@
     if (!commit((target) => { Object.assign(target,updated); },'Телефон сотрудника обновлён.')) return;
     if (roster) {
       for (const person of roster.employees) if (nameKey(person.name) === nameKey(contact.name)) person.phone = contact.phone.trim();
-      try { storage.setItem(ROSTER_KEY,JSON.stringify(roster)); } catch (_) { /* основное сохранение проверено persist() */ }
+      writeRosterCache(roster);
     }
     closeModal();
   }
@@ -514,5 +539,6 @@
     $('save-status').classList.add('error');
     showWarning('Не удалось обновить набор смен. Существующий график оставлен без изменений. ' + presetsError);
   } else persist();
+  cachedRoster(true);
   importRosterLink();
 })();
