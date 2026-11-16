@@ -8,7 +8,22 @@ const today=new Date(), monthNow=()=>today.getFullYear()+'-'+String(today.getMon
 let month=monthNow(), book={version:1,people:{},days:{},confirmed:{},overrides:{}};
 try {const raw=localStorage.getItem(KEY);if(raw) book=validate(JSON.parse(raw));}catch(e){alert('Не удалось прочитать табель: '+e.message+'\nДанные не перезаписаны.');return;}
 function validate(b){
- if(!b||b.version!==1||!['people','days','confirmed','overrides'].every(k=>b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])))throw Error('Неверный формат табеля');
+ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
+ if(!obj(b)||b.version!==1||!['people','days','confirmed','overrides'].every(k=>obj(b[k])))throw Error('Неверный формат табеля');
+ const validId=id=>/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(id);
+ for(const [id,p] of Object.entries(b.people)){
+  if(!validId(id)||!obj(p)||!['salary','shift'].includes(p.type)||!Number.isFinite(p.rate)||p.rate<0||p.rate>10000000)throw Error('Некорректная ставка');
+ }
+ for(const [id,days] of Object.entries(b.days)){
+  if(!validId(id)||!obj(days))throw Error('Неверная строка табеля');
+  for(const [date,x] of Object.entries(days)){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!obj(x)||!Number.isFinite(x.value)||x.value<0||x.value>3||typeof x.confirmed!=='boolean'||typeof x.note!=='string'||x.note.length>200)throw Error('Неверная смена');
+  }
+ }
+ for(const [id,months] of Object.entries(b.overrides)){
+  if(!validId(id)||!obj(months))throw Error('Неверная корректировка');
+  for(const [m,v] of Object.entries(months))if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)||!Number.isFinite(v)||v<0||v>10000000)throw Error('Неверная выплата');
+ }
  return b;
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(book));render();}catch(e){alert('Не удалось сохранить табель: '+e.message);}}
