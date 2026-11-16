@@ -12,6 +12,7 @@
   <script src="png.js?v=14" defer></script>
   <script src="viewport.js?v=7" defer></script>
   <script src="app.js?v=11" defer></script>
+  <script src="timesheet.js?v=1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -30,7 +31,8 @@
     <h1 class="sr-only">Редактор графика кухни</h1>
     <div id="storage-warning" class="warning" role="alert" hidden></div>
 
-    <section class="schedule-card" aria-label="Недельный график">
+    <div class="ts-switch"><button id="ts-open" class="button primary">Открыть табель за месяц</button></div>
+    <section id="schedule-panel" class="schedule-card" aria-label="Недельный график">
       <div class="week-toolbar">
         <div class="week-picker">
           <button id="prev-week" class="button square" aria-label="Предыдущая неделя">‹</button>
@@ -58,6 +60,22 @@
       <div class="table-bottom"><div class="roster-actions"><button id="add-employee" class="button subtle small">＋ Сотрудник</button><button id="manage-departments" class="button subtle small">Цеха</button></div><span id="team-count"></span></div>
     </section>
 
+    <section id="ts-panel" class="schedule-card" hidden aria-label="Месячный табель">
+      <div class="ts-controls">
+        <button id="ts-back" class="button">← График</button>
+        <h2>Табель кухни</h2>
+        <button id="ts-prev" class="button">‹</button><input id="ts-month" type="month" aria-label="Месяц табеля"><button id="ts-next" class="button">›</button>
+        <button id="ts-import-week" class="button primary">Добавить прошлую неделю</button>
+        <button id="ts-confirm" class="button">Подтвердить месяц</button>
+        <button id="ts-export" class="button">CSV</button>
+        <button id="ts-backup" class="button">Копия табеля JSON</button>
+        <button id="ts-restore" class="button">Восстановить табель</button>
+        <input id="ts-file" type="file" accept=".json,application/json" hidden>
+      </div>
+      <p id="ts-status"></p>
+      <div id="ts-body" class="ts-scroll"></div>
+      <p class="privacy-note">Табель хранится отдельно от графика в этом браузере. Сохраняйте обе резервные копии JSON. Для изменения ставки нажмите на имя, для корректировки дня — на ячейку, для ручной суммы — на выплату.</p>
+    </section>
     <footer class="page-footer"><span>Только на этом устройстве <span class="footer-separator">·</span> Без регистрации</span><button id="backup-shortcut" class="text-button">Сохранить резервную копию ↗</button></footer>
     <p class="privacy-note">Данные хранятся в этом браузере и не синхронизируются между iPhone и Mac. Для переноса используйте JSON.</p>
     <noscript><div class="warning">Для работы редактора включите JavaScript в настройках браузера.</div></noscript>
