@@ -105,6 +105,27 @@ def frozen_checks(page):
     page.locator("#ts-zoom-fit").click()
 
 
+def weekly_palette_checks(page):
+    assert page.locator('#shift-palette [data-brush="work"]').count() == 0
+    page.locator('#shift-palette [data-brush="midday"]').click()
+    box = page.locator('#table-scroll').bounding_box()
+    page.locator('#table-scroll').click(position={"x": 4, "y": box["height"]-3})
+    assert page.locator('#shift-palette [aria-pressed="true"]').count() == 0
+    page.locator('#revision-picker').click()
+    page.locator('[data-revision-period="ночь"]').click()
+    page.locator('#schedule-body [data-person="demo-a"][data-day="6"]').click()
+    assert page.evaluate("""() => {
+      const s=LesnoySchedule.getState(),id=s.weeks[s.selectedWeek]['demo-a'][6];
+      return s.shifts.find(x=>x.id===id).label==='Ревизия ночь';
+    }""")
+    page.locator('#schedule-body [data-person="demo-a"][data-day="6"]').click()
+    assert page.locator('#dialog-body [data-pick-shift="work"]').count() == 0
+    page.locator('#pick-cell-revision').click()
+    page.locator('[data-revision-period="утро"]').click()
+    assert page.locator('#editor-dialog').is_hidden()
+    assert page.locator('#shift-palette > button').nth(-1).get_attribute('id') == 'revision-picker'
+
+
 def landscape_checks(page):
     weekly = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     monthly = page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)")
@@ -221,6 +242,7 @@ def verify_page(browser, base_url, mobile=False):
     assert page.locator("#schedule-panel").is_visible()
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
     assert not errors, f"Browser errors: {errors}"
+    weekly_palette_checks(page)
     if mobile:
         landscape_checks(page)
     assert not errors, f"Browser errors after rotation: {errors}"

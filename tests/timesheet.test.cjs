@@ -189,3 +189,25 @@ test('weekly sync button transfers only the displayed week without changing week
  const saved=shared.get(MONTHLY);h.click('#sync-timesheet');assert.equal(shared.get(MONTHLY),saved);
  assert.equal(shared.get(WEEKLY),before);
 });
+
+test('startup merges an imported zero-rate typo duplicate and persists its archive and weekly link',t=>{
+ const state=fixture();state.employees[0].name='Тестовсский Алексей';
+ const b=Monthly.createBook('2026-11');b.roster=[{id:'excel_1',name:'Тестовский Алексей',role:'Повар'}];
+ b.profiles['2026-11']={excel_1:{type:'shift',rate:1000},'test-shift':{type:'shift',rate:0}};
+ b.days['test-shift']={'2026-11-17':{value:1,confirmed:false,note:'Из графика'}};
+ const shared=new Map([[WEEKLY,JSON.stringify(state)],[MONTHLY,JSON.stringify(b)]]),h=harness(t,shared);
+ assert.equal(h.read().aliases['test-shift'],'excel_1');assert.equal(h.read().days['test-shift'],undefined);
+ assert.equal(h.read().days.excel_1['2026-11-17'].value,1);assert.ok(h.read().mergedRows['test-shift']);
+ assert.equal(h.w.document.querySelector('#ts-table [data-rate="test-shift"]'),null);
+ h.click('#ts-import-week');assert.equal(h.read().roster.length,2);assert.equal(h.read().roster.filter(p=>p.id==='excel_1').length,1);assert.equal(h.read().days.excel_1['2026-11-16'].value,1);
+ const reloaded=harness(t,shared);assert.equal(reloaded.read().aliases['test-shift'],'excel_1');
+ assert.equal(reloaded.w.document.querySelector('#ts-table [data-rate="test-shift"]'),null);
+});
+
+
+test('monthly background click clears selection and cannot accidentally paint a zero shift',t=>{
+ const h=harness(t);h.click('[data-ts-brush="1.5"]');
+ const before=h.shared.get(MONTHLY);h.q('#ts-body').dispatchEvent(new h.w.MouseEvent('click',{bubbles:true}));
+ assert.equal(h.w.document.querySelector('#ts-palette [aria-pressed="true"]'),null);
+ h.click(h.cell('test-shift','2026-11-20'));assert.equal(h.shared.get(MONTHLY),before);
+});

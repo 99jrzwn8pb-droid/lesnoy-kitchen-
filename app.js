@@ -28,7 +28,9 @@
   let presetsError = null;
   try { state = C.configureShiftPresets(state); } catch (error) { presetsError = error.message; }
   if (normalizeEmployeePhones(state)) state.updatedAt = new Date().toISOString();
-  let brush = C.selectableShifts(state)[0]?.id || '';
+  const visibleShifts = () => C.selectableShifts(state).filter(s => s.label.trim().toLocaleUpperCase('ru-RU') !== 'Р');
+  const ordinaryShifts = () => visibleShifts().filter(s => !/^ревизия(?:\s|$|[:–-])/i.test(s.label.trim()));
+  let brush = ordinaryShifts()[0]?.id ?? null;
   let editMode = false;
   let history = [];
   let toastTimer;
@@ -146,14 +148,14 @@
     }).join('');
   }
   function render() {
-    const choices = C.selectableShifts(state);
-    if (!choices.some((s) => s.id === brush)) brush = brush === '' ? '' : (choices[0]?.id || '');
+    const choices = visibleShifts();
+    if (brush !== null && brush !== '' && !choices.some((s) => s.id === brush)) brush = null;
     $('week-range').textContent = rangeLabel(); $('week-number').textContent = ' / ' + String(weekNumber(state.selectedWeek)).padStart(2,'0');
     $('week-date').value = state.selectedWeek;
     $('undo').disabled = !history.length || externalChange;
     $('edit-mode').setAttribute('aria-pressed',String(editMode));
-    $('mode-hint').textContent = editMode ? 'Нажмите ячейку и задайте время смены' : brush === '' ? 'Нажимайте смены, которые нужно удалить' : 'Нажмите заполненную ячейку, чтобы изменить или удалить смену';
-    $('shift-palette').innerHTML = choices.map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Удалять смены нажатием на ячейку">⌫ Удалить смену</button>`;
+    $('mode-hint').textContent = editMode ? 'Нажмите ячейку и задайте время смены' : brush === null ? 'Выберите смену сверху. Нажатие на пустое место снимает выбор' : brush === '' ? 'Нажимайте смены, которые нужно удалить' : 'Нажмите заполненную ячейку, чтобы изменить или удалить смену';
+    $('shift-palette').innerHTML = ordinaryShifts().map((s,i) => `<button class="shift-chip" data-brush="${esc(s.id)}" aria-pressed="${brush === s.id}" style="--shift-color:${s.color}" title="${esc(s.label)} · клавиша ${i+1}"><i></i>${esc(s.label)}</button>`).join('') + `<button class="shift-chip" data-brush="" aria-pressed="${brush === ''}" title="Удалять смены нажатием на ячейку"><span class="erase-icon" aria-hidden="true">⌫</span> Удалить смену</button><button id="revision-picker" class="shift-chip" aria-pressed="${/^ревизия/i.test(shiftById(brush)?.label || '')}" title="Выбрать утреннюю или ночную ревизию">Ревизия ▾</button>`;
     const dates = C.weekDates(state.selectedWeek);
     $('schedule-head').innerHTML = '<tr class="sheet-title-row"><th class="sheet-title" colspan="16">График кухни &quot;ЛЕСНОЙ&quot;</th></tr><tr class="sheet-days-row"><th class="employee-header" scope="col" rowspan="2">Фамилия Имя сотрудника</th><th scope="col" rowspan="2" class="phone-header">№ телефона</th>' + dates.map((_,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][i]}</th>`).join('') + '</tr><tr class="sheet-dates-row">' + dates.map((date,i) => `<th scope="colgroup" colspan="2" class="${[4,5].includes(i)?'weekend':''}">${dateLabel(date,{day:'2-digit',month:'2-digit',year:'numeric'})}</th>`).join('') + '</tr>';
     $('schedule-body').innerHTML = state.departments.map((dep) => {
@@ -241,7 +243,7 @@
     });
   }
   function shiftList() {
-    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${C.selectableShifts(state).map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
+    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${visibleShifts().map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
       body.querySelectorAll('[data-edit-shift]').forEach((b) => { b.onclick = () => shiftEditor(b.dataset.editShift); });
       body.querySelector('#new-shift').onclick = () => shiftEditor();
     });
@@ -275,8 +277,9 @@
     const person = (department ? state.departments : state.employees).find((p) => p.id === personId);
     const current = row(personId,department)[day];
     const interval = intervalFromLabel(shiftById(current)?.label) || (!current ? intervalFromLabel(shiftById(brush)?.label) : null);
-    modal(department ? 'Ячейка «' + person.name + '»' : 'Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${C.selectableShifts(state).map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}</div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}>⌫ Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
+    modal(department ? 'Ячейка «' + person.name + '»' : 'Смена сотрудника',`<p class="dialog-note">${esc(person.name)} · ${esc(dateLabel(C.weekDates(state.selectedWeek)[day],{weekday:'long',day:'numeric',month:'long'}))}</p><div class="modal-palette">${ordinaryShifts().map((s) => `<button class="shift-chip" data-pick-shift="${esc(s.id)}" aria-pressed="${current === s.id}" style="--shift-color:${s.color}"><i></i>${esc(s.label)}</button>`).join('')}<button id="pick-cell-revision" class="shift-chip">Ревизия ▾</button></div><form id="interval-form" class="interval-form"><div class="time-fields"><label class="field">Начало смены<input name="start" type="time" step="60" required value="${interval?.start || ''}" autocomplete="off"></label><label class="field">Окончание смены<input name="end" type="time" step="60" required value="${interval?.end || ''}" autocomplete="off"></label></div><p id="interval-summary" class="dialog-note" aria-live="polite"></p><p class="form-error" role="alert"></p><button type="submit" class="button primary interval-save">Сохранить время</button></form><details id="custom-shift-details" class="custom-shift-details"><summary>Другое обозначение смены</summary><form id="custom-shift-form"><label class="field">Обозначение<input name="label" maxlength="24" required placeholder="Например: Стажировка" autocomplete="off"></label><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="button">Применить обозначение</button></div></form></details><div class="form-actions cell-editor-actions"><button id="delete-cell-shift" type="button" class="button danger" ${current?'':'disabled'}><span class="erase-icon" aria-hidden="true">⌫</span> Удалить смену</button><button type="button" class="button" data-close>Закрыть</button></div>`,(body) => {
       body.querySelectorAll('[data-pick-shift]').forEach((b) => { b.onclick = () => { if (applyShift(personId,day,b.dataset.pickShift,'Смена применена',department)) closeModal(); }; });
+      body.querySelector('#pick-cell-revision').onclick = () => revisionPicker(shiftId => applyShift(personId,day,shiftId,'Ревизия сохранена',department));
       body.querySelector('#delete-cell-shift').onclick = () => { if (applyShift(personId,day,'','Смена удалена',department)) closeModal(); };
       const form = body.querySelector('#interval-form');
       const customForm = body.querySelector('#custom-shift-form');
@@ -504,12 +507,31 @@
     focusCell(department ? target.dataset.departmentCell : target.dataset.person,day,true,department);
   }
 
-  $('shift-palette').onclick = (event) => { const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); } };
+  function revisionPicker(pick) {
+    modal('Ревизия','<div class="revision-options"><button class="button" data-revision-period="утро">Ревизия утро</button><button class="button" data-revision-period="ночь">Ревизия ночь</button></div>',body => {
+      body.querySelectorAll('[data-revision-period]').forEach(button => { button.onclick = () => {
+        const label = 'Ревизия ' + button.dataset.revisionPeriod;
+        let shift = state.shifts.find(s => s.label.trim().toLocaleLowerCase('ru-RU') === label.toLocaleLowerCase('ru-RU'));
+        if (!shift) {
+          if (state.shifts.length >= 33) { toast('Удалите неиспользуемый вариант через «Настроить», чтобы добавить ревизию.'); return; }
+          shift = {id:id('revision'),label,color:'#f0e9d2'};
+          if (!commit(next => next.shifts.push(shift))) return;
+        }
+        if (pick(shift.id) === false) return;
+        closeModal();
+        const menu = $('mobile-menu-toggle'); if (menu?.getAttribute('aria-expanded') === 'true') menu.click();
+      }; });
+    });
+  }
+  $('shift-palette').onclick = (event) => {
+    if (event.target.closest('#revision-picker')) { revisionPicker(shiftId => { brush=shiftId;editMode=false;render(); }); return; }
+    const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); }
+  };
   $('edit-mode').onclick = () => { editMode = !editMode; render(); };
   $('schedule-body').onclick = (event) => {
     const b = event.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (editMode || (brush !== '' && row(b.dataset.person)[day])) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
-    if (b.hasAttribute('data-department-cell')) { const day = Number(b.dataset.day); if (editMode || (brush !== '' && row(b.dataset.departmentCell,true)[day])) cellEditor(b.dataset.departmentCell,day,true); else applyShift(b.dataset.departmentCell,day,brush,'Ячейка строки сохранена',true); }
+    if (b.hasAttribute('data-person')) { const day = Number(b.dataset.day); if (brush === null && !editMode && !row(b.dataset.person)[day]) return; if (editMode || (brush !== '' && row(b.dataset.person)[day])) cellEditor(b.dataset.person,day); else applyShift(b.dataset.person,day,brush); }
+    if (b.hasAttribute('data-department-cell')) { const day = Number(b.dataset.day); if (brush === null && !editMode && !row(b.dataset.departmentCell,true)[day]) return; if (editMode || (brush !== '' && row(b.dataset.departmentCell,true)[day])) cellEditor(b.dataset.departmentCell,day,true); else applyShift(b.dataset.departmentCell,day,brush,'Ячейка строки сохранена',true); }
     if (b.hasAttribute('data-employee')) employeeEditor(b.dataset.employee);
     if (b.hasAttribute('data-department')) departmentEditor(b.dataset.department);
     if (b.hasAttribute('data-add-department')) employeeEditor(null,b.dataset.addDepartment);
@@ -525,9 +547,13 @@
     if (arrows[event.key]) { event.preventDefault(); const [i,d] = arrows[event.key]; if (people[i] && d>=0 && d<7) focusCell(people[i].id,d,true,people[i].department); }
     else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); applyShift(personId,day,'',null,department); }
     else if (event.key === 'F2') { event.preventDefault(); cellEditor(personId,day,department); }
-    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = C.selectableShifts(state)[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(personId,day,false,department); toast('Выбрана смена: ' + s.label); } }
+    else if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) { const s = ordinaryShifts()[Number(event.key)-1]; if (s) { event.preventDefault(); brush = s.id; editMode=false; render(); focusCell(personId,day,false,department); toast('Выбрана смена: ' + s.label); } }
   };
   $('schedule-body').addEventListener('paste',pasteRange);
+  document.addEventListener('click', event => {
+    if ($('schedule-panel')?.hidden || event.defaultPrevented || event.target.closest('button,a,input,select,textarea,label,summary,dialog,[role=button]')) return;
+    if (brush !== null || editMode) { brush=null;editMode=false;render(); }
+  });
   document.addEventListener('keydown',(event) => {
     if ($('schedule-panel')?.hidden) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !dialog.open && !/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) { event.preventDefault(); undo(); }

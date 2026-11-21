@@ -105,7 +105,8 @@ function restoreCombined(nextBook,nextSchedule){
 }
 function importData(parsed,options={}){
  const combined=parsed?.type==='lesnoy-combined-backup';if(combined&&parsed.version!==1)throw Error('Версия полной копии не поддерживается.');
- const next=T.validateBook(combined?parsed.timesheet:parsed?.type==='lesnoy-timesheet-backup'?parsed.timesheet:parsed),nextSchedule=combined?C.validateState(parsed.schedule):null;
+ const nextSchedule=combined?C.validateState(parsed.schedule):null;
+ const next=T.mergeImportedDuplicates(T.validateBook(combined?parsed.timesheet:parsed?.type==='lesnoy-timesheet-backup'?parsed.timesheet:parsed),nextSchedule||schedule());
  if(!options.skipConfirm&&!confirm(combined?'Заменить недельный график И табель полной резервной копией? Текущие данные будут заменены.':'Загрузить этот табель? Недельный график останется без изменений. Текущий табель будет заменён.'))return false;
  if(external)throw Error('Сначала загрузите изменения другой вкладки.');
  if(combined){restoreCombined(next,nextSchedule);book=next;dirty=false;month=book.selectedMonth;history=[];render();if(!options.noReload)location.reload();}
@@ -135,14 +136,16 @@ $('ts-restore').onclick=()=>$('ts-file').click();$('ts-file').onchange=e=>{const
 $('ts-zoom-in').onclick=()=>view?.zoomBy(1.2);$('ts-zoom-out').onclick=()=>view?.zoomBy(1/1.2);$('ts-zoom-fit').onclick=()=>view?.fit();$('ts-freeze').onchange=e=>view?.setFrozen(e.target.checked);
 $('ts-body').addEventListener('click',e=>{
  if(view?.isClickBlocked()){e.preventDefault();e.stopImmediatePropagation();return;}const b=e.target.closest('button');if(!b)return;
- if(b.hasAttribute('data-ts-import'))$('ts-file').click();else if(b.hasAttribute('data-ts-add'))editPerson();else if(b.dataset.rate)editPerson(b.dataset.rate);else if(b.dataset.pay)editPay(b.dataset.pay);else if(b.dataset.tsPerson){if(brush==='erase')applyCell(b.dataset.tsPerson,b.dataset.date,null);else if(cell(b.dataset.tsPerson,b.dataset.date))editCell(b.dataset.tsPerson,b.dataset.date);else{applyCell(b.dataset.tsPerson,b.dataset.date,Number(brush),$('ts-brush-confirmed').checked,'');focusCell(b.dataset.tsPerson,b.dataset.date);}}
+ if(b.hasAttribute('data-ts-import'))$('ts-file').click();else if(b.hasAttribute('data-ts-add'))editPerson();else if(b.dataset.rate)editPerson(b.dataset.rate);else if(b.dataset.pay)editPay(b.dataset.pay);else if(b.dataset.tsPerson){if(brush===null&&!cell(b.dataset.tsPerson,b.dataset.date))return;if(brush==='erase')applyCell(b.dataset.tsPerson,b.dataset.date,null);else if(cell(b.dataset.tsPerson,b.dataset.date))editCell(b.dataset.tsPerson,b.dataset.date);else{applyCell(b.dataset.tsPerson,b.dataset.date,Number(brush),$('ts-brush-confirmed').checked,'');focusCell(b.dataset.tsPerson,b.dataset.date);}}
 });
 $('ts-body').addEventListener('keydown',e=>{const b=e.target.closest('[data-ts-person][data-date]');if(!b)return;const list=people(),row=list.findIndex(p=>p.id===b.dataset.tsPerson),day=Number(b.dataset.date.slice(8)),arrows={ArrowLeft:[row,day-1],ArrowRight:[row,day+1],ArrowUp:[row-1,day],ArrowDown:[row+1,day]};if(arrows[e.key]){e.preventDefault();const[r,d]=arrows[e.key];if(list[r]&&d>=1&&d<=T.dayCount(month))focusCell(list[r].id,T.dateOf(month,d));}else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();applyCell(b.dataset.tsPerson,b.dataset.date,null);focusCell(b.dataset.tsPerson,b.dataset.date);}else if(e.key==='F2'){e.preventDefault();editCell(b.dataset.tsPerson,b.dataset.date);}});
 $('ts-body').addEventListener('paste',paste);
+document.addEventListener('click',e=>{if(active&&!e.defaultPrevented&&!e.target.closest('button,a,input,select,textarea,label,summary,dialog,[role=button]')&&brush!==null){brush=null;render();}});
 document.addEventListener('keydown',e=>{if(active&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'&&!e.shiftKey&&!dialog.open&&!/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)){e.preventDefault();undo();}});
 $('ts-dialog-close').onclick=closeDialog;$('ts-dialog-body').onclick=e=>{if(e.target.closest('[data-ts-close]'))closeDialog();};
 dialog.addEventListener('close',()=>{exportSequence++;if(exportURL){URL.revokeObjectURL(exportURL);exportURL=null;}if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});});
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
 window.addEventListener('storage',e=>{if(e.key===T.STORAGE_KEY||e.key===null){external=true;warning='Табель изменён в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения.';if(active)render();}});
+if(!loaded.error){const repaired=T.mergeImportedDuplicates(book,schedule());if(JSON.stringify(repaired)!==JSON.stringify(book)){book=repaired;persist();}}
 window.LesnoyTimesheet={getBook:()=>T.validateBook(book),getMonth:()=>month,open,close,importData,importFile};
 })();

@@ -236,3 +236,27 @@ test('replacing a corrupt primary requires preserving its original bytes first',
   assert.equal(T.load(store).error, null);
   assert.deepEqual(writes.slice(-2), [T.BACKUP_KEY, T.STORAGE_KEY]);
 });
+
+
+test('import typo duplicates merge into upper row, archive conflicts and keep future weekly imports linked',()=>{
+ const b=T.createBook('2026-11');b.roster=[{id:'excel_1',name:'Тестовский Алексей',role:'Повар'},{id:'weekly',name:'Тестовсский Алексей',role:''}];
+ b.profiles['2026-11']={excel_1:{type:'shift',rate:1000},weekly:{type:'shift',rate:0}};
+ b.days.excel_1={'2026-11-16':cell(1)};b.days.weekly={'2026-11-16':cell(1.5),'2026-11-17':cell(1,false,'Из графика')};
+ const s={departments:[],employees:[{id:'weekly',name:'Тестовсский Алексей'}],shifts:[{id:'day',label:'10–22'}],weeks:{'2026-11-16':{weekly:['day','day','day','','','','']}}};
+ const before=JSON.stringify(b),next=T.mergeImportedDuplicates(b,s);
+ assert.equal(JSON.stringify(b),before);assert.equal(T.employees(next,s).length,1);assert.equal(next.roster[0].id,'excel_1');
+ assert.equal(next.days.excel_1['2026-11-16'].value,1);assert.equal(next.days.excel_1['2026-11-17'].value,1);
+ assert.equal(next.mergedRows.weekly.source.days.weekly['2026-11-16'].value,1.5);assert.equal(next.aliases.weekly,'excel_1');
+ const imported=T.importWeek(T.validateBook(JSON.parse(JSON.stringify(next))),s,'2026-11-16').book;
+ assert.equal(imported.roster.length,1);assert.equal(imported.days.excel_1['2026-11-18'].value,1);
+ assert.equal(imported.days.weekly,undefined);assert.equal(T.totals(imported,'excel_1','2026-11').amount,1000);
+ assert.deepEqual(T.mergeImportedDuplicates(next,s),next);
+});
+
+test('similar imported names with independent pay or ambiguous targets are never merged automatically',()=>{
+ const b=T.createBook('2026-11');b.roster=[{id:'excel_1',name:'Тестовский Алексей',role:'Повар'},{id:'weekly',name:'Тестовсский Алексей',role:''}];
+ const s={employees:[{id:'weekly',name:'Тестовсский Алексей'}]};b.people.weekly={type:'shift',rate:100};
+ assert.equal(T.mergeImportedDuplicates(b,s).roster.length,2);
+ delete b.people.weekly;b.roster.push({id:'excel_2',name:'Тестовский Алексей',role:'Повар'});
+ assert.equal(T.mergeImportedDuplicates(b,s).roster.length,3);
+});

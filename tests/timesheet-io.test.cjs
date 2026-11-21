@@ -105,10 +105,13 @@ test('exports valid leap-February and 30-day calendars without adding nonexisten
  }
 });
 
-test('duplicates are rejected atomically in source and existing combined roster',async()=>{
+test('exact roster links are reused while true duplicate identities are rejected atomically',async()=>{
  const file=await IO.exportExcel(fixture(),null,'2026-11'),raw=await bytes(file),book=fixture();
  const before=JSON.stringify(book);
- await assert.rejects(IO.importExcel(raw,file.filename,book,{employees:[{id:'other',name:' fraction   test ',role:''}]}),/несколькими/);
+ const linked=await IO.importExcel(raw,file.filename,book,{employees:[{id:'other',name:' fraction   test ',role:''}]});
+ assert.equal(linked.book.roster.find(p=>p.name==='Fraction Test').id,'fraction');
+ const ambiguous=C.validateBook(book);ambiguous.roster.push({id:'other',name:'Fraction Test',role:'Other'});
+ await assert.rejects(IO.importExcel(raw,file.filename,ambiguous,null),/несколькими/);
  assert.equal(JSON.stringify(book),before);
  const wb=await workbook(file),ws=wb.worksheets[0];ws.getCell('A4').value='FRACTION TEST';await assert.rejects(IO.importExcel(await wb.xlsx.writeBuffer(),file.filename,book,null),/повторяется имя/);
 });

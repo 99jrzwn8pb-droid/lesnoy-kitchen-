@@ -123,9 +123,9 @@ test('add employee, paint in one click, reload, and preserve both weeks without 
   assert.equal(second.read().selectedWeek, '2027-01-04');
   second.click('#copy-week');
   assert.equal(second.read().weeks['2027-01-04'][person][0], 'midday');
-  second.click('[data-brush="work"]'); second.click(second.cell(person, 0));
-  second.click('[data-pick-shift="work"]');
-  assert.equal(second.read().weeks['2027-01-04'][person][0], 'work');
+  second.click('[data-brush="day"]'); second.click(second.cell(person, 0));
+  second.click('[data-pick-shift="day"]');
+  assert.equal(second.read().weeks['2027-01-04'][person][0], 'day');
   assert.equal(second.read().weeks['2026-12-28'][person][0], 'midday');
   second.click('#prev-week');
   assert.equal(second.q(second.cell(person, 0)).getAttribute('aria-label').split(': ').at(-1), '11:30–23:30');
@@ -164,29 +164,29 @@ function paletteLabels(h, selector = '#shift-palette [data-brush]') {
     .map(button => button.textContent.trim());
 }
 
-test('new shift panel has only requested presets and applies minute interval and Cyrillic Р', t => {
+test('shift panel hides Р while minute intervals and existing saved values remain supported', t => {
   const h = harness(t);
-  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30']);
   const person = h.addEmployee();
   h.click('[data-brush="midday"]'); h.click(h.cell(person,0));
   assert.deepEqual([...h.q(h.cell(person,0)).querySelectorAll('.shift-time')].map(span=>span.textContent),['11:30','23:30']);
-  h.q(h.cell(person,1)).dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'3',bubbles:true,cancelable:true}));
-  assert.equal(h.q('[data-brush="work"]').getAttribute('aria-pressed'),'true','Third selectable preset is Р');
+  h.q(h.cell(person,1)).dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'1',bubbles:true,cancelable:true}));
+  assert.equal(h.q('[data-brush="day"]').getAttribute('aria-pressed'),'true','The keyboard selects a visible time preset');
   h.click(h.cell(person,1));
-  assert.deepEqual([...h.q(h.cell(person,1)).querySelectorAll('.shift-time')].map(span=>span.textContent),['Р','Р']);
+  assert.deepEqual([...h.q(h.cell(person,1)).querySelectorAll('.shift-time')].map(span=>span.textContent),['10:00','22:00']);
   h.click(h.cell(person,0));
-  assert.deepEqual(paletteLabels(h,'#dialog-body [data-pick-shift]'),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(h,'#dialog-body [data-pick-shift]'),['10–22','11:30–23:30']);
   h.click('#close-dialog');
   const reloaded=harness(t,h.shared);
-  assert.deepEqual(paletteLabels(reloaded),['10–22','11:30–23:30','Р']);
-  assert.equal(reloaded.read().weeks[reloaded.read().selectedWeek][person][1],'work');
+  assert.deepEqual(paletteLabels(reloaded),['10–22','11:30–23:30']);
+  assert.equal(reloaded.read().weeks[reloaded.read().selectedWeek][person][1],'day');
 });
 
 test('existing legacy selection migrates without changing historical shift values, people or weeks', t => {
   const legacy=legacySchedule();
   const shared=new Map([[KEY,JSON.stringify(legacy)]]);
   const h=harness(t,shared);
-  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30']);
   const migrated=h.read();
   assert.deepEqual(migrated.employees,legacy.employees);
   assert.deepEqual(migrated.weeks,legacy.weeks);
@@ -199,13 +199,13 @@ test('existing legacy selection migrates without changing historical shift value
   assert.deepEqual(halves(3),['Б','Б']);
   assert.match(h.q('#schedule-body').textContent,/ТЕСТ-СТАРЫЙ-ТЕЛЕФОН/);
   h.click(h.cell('legacy-person',0));
-  assert.deepEqual(paletteLabels(h,'#dialog-body [data-pick-shift]'),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(h,'#dialog-body [data-pick-shift]'),['10–22','11:30–23:30']);
   for(const id of ['late','off','vacation','sick']) assert.equal(h.w.document.querySelector(`[data-pick-shift="${id}"]`),null);
   h.click('#close-dialog');
   const after=JSON.stringify(migrated);
   const reloaded=harness(t,shared);
   assert.equal(JSON.stringify(reloaded.read()),after,'Reload migration must be idempotent');
-  assert.deepEqual(paletteLabels(reloaded),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(reloaded),['10–22','11:30–23:30']);
 });
 
 test('importing an old backup preserves archived labels and reuses an existing manual midday interval', async t => {
@@ -218,7 +218,7 @@ test('importing an old backup preserves archived labels and reuses an existing m
   const imported=h.read();
   assert.deepEqual(imported.employees,old.employees);
   assert.deepEqual(imported.weeks,old.weeks);
-  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30','Р']);
+  assert.deepEqual(paletteLabels(h),['10–22','11:30–23:30']);
   assert.equal(imported.shifts.filter(shift=>shift.label==='11:30–23:30').length,1,'The manual interval must be reused');
   h.click('[data-brush="existing-manual"]'); h.click(h.cell('legacy-person',6));
   assert.equal(h.read().weeks['2026-11-16']['legacy-person'][6],'existing-manual');
@@ -442,8 +442,8 @@ test('edit employee and create a custom shift from the cell editor', t => {
   assert.ok(h.q(h.cell(person, 4)).closest('td').classList.contains('weekend'));
   assert.ok(h.q(h.cell(person, 5)).closest('td').classList.contains('weekend'));
   h.click(h.cell(person, 5));
-  h.click('[data-pick-shift="work"]');
-  assert.equal(h.read().weeks[current.selectedWeek][person][5], 'work');
+  h.click('[data-pick-shift="day"]');
+  assert.equal(h.read().weeks[current.selectedWeek][person][5], 'day');
 });
 
 test('paste a valid Excel range, reject unknown values atomically, then undo', t => {
@@ -492,7 +492,7 @@ test('cancel copy/import preserves current data, and non-Monday selection normal
   const h = harness(t);
   const person = h.addEmployee();
   h.setDate('2026-11-16'); h.click(h.cell(person, 0));
-  h.click('#next-week'); h.click('[data-brush="work"]'); h.click(h.cell(person, 0));
+  h.click('#next-week'); h.click('[data-brush="day"]'); h.click(h.cell(person, 0));
   const before = h.shared.get(KEY);
   h.setConfirmAnswer(false); h.click('#copy-week');
   assert.equal(h.shared.get(KEY), before);
@@ -729,8 +729,8 @@ test('Excel table keeps merged headers and department cells while displaying sta
   assert.deepEqual(halves(0),['10:00','22:00']);
   assert.equal(h.q(h.cell(person,0)).closest('td').colSpan,2);
   assert.match(h.q(h.cell(person,0)).getAttribute('aria-label'),/10–22/);
-  h.click('[data-brush="work"]');h.click(h.cell(person,1));
-  assert.deepEqual(halves(1),['Р','Р']);
+  h.click('[data-brush="day"]');h.click(h.cell(person,1));
+  assert.deepEqual(halves(1),['10:00','22:00']);
   assert.equal(h.q(h.cell(person,2)).textContent.trim(),'','Empty Excel cells should remain blank');
   h.click('#edit-mode');h.click(h.cell(person,4));
   h.submit('#interval-form',{start:'17:30',end:'03:30'});
@@ -784,7 +784,7 @@ test('private contact update changes one phone and its recovery copy while prese
   const person=h.addEmployee();
   const other=h.addEmployee('Другой тестовый сотрудник','ТЕСТ-ДРУГОЙ-ТЕЛЕФОН');
   h.setDate('2026-11-16');h.click(h.cell(person,0));h.click(h.cell(other,2));
-  h.click('#next-week');h.click('[data-brush="work"]');h.click(h.cell(person,3));
+  h.click('#next-week');h.click('[data-brush="day"]');h.click(h.cell(person,3));
   const before=h.read();
   const roster={type:'lesnoy-roster',version:1,departments:before.departments,employees:before.employees};
   h.shared.set(ROSTER_KEY,JSON.stringify(roster));
@@ -951,7 +951,7 @@ test('private week link copies named rows including blanks while preserving othe
   const person=h.addEmployee('Тестовый повар первой строки','ТЕСТ-ПЕРВЫЙ-ТЕЛЕФОН');
   const other=h.addEmployee('Тестовый повар другой строки','ТЕСТ-ДРУГОЙ-ТЕЛЕФОН');
   h.setDate('2026-11-16');h.click(h.cell(person,0));h.click(h.cell(person,1));h.click(h.cell(other,4));
-  h.setDate('2026-11-23');h.click('[data-brush="work"]');h.click(h.cell(person,6));
+  h.setDate('2026-11-23');h.click('[data-brush="day"]');h.click(h.cell(person,6));
   const before=h.read();
   const recovery={type:'lesnoy-roster',version:1,departments:before.departments,employees:before.employees};
   h.shared.set(ROSTER_KEY,JSON.stringify(recovery));
@@ -1054,9 +1054,9 @@ const departmentCell = (department,day) => `[data-department-cell="${department}
 test('department calendar cells persist manual intervals and deletion without changing employee shifts', t => {
   const h=harness(t);const person=h.addEmployee();h.setDate('2026-11-16');
   h.click(h.cell(person,0));const before=h.read();
-  h.click('[data-brush="work"]');h.click(departmentCell('hot',1));
-  assert.equal(h.read().departmentWeeks['2026-11-16'].hot[1],'work');
-  assert.deepEqual([...h.q(departmentCell('hot',1)).querySelectorAll('.shift-time')].map(x=>x.textContent),['Р','Р']);
+  h.click('[data-brush="day"]');h.click(departmentCell('hot',1));
+  assert.equal(h.read().departmentWeeks['2026-11-16'].hot[1],'day');
+  assert.deepEqual([...h.q(departmentCell('hot',1)).querySelectorAll('.shift-time')].map(x=>x.textContent),['10:00','22:00']);
   assert.equal(h.q(departmentCell('hot',1)).hasAttribute('data-person'),false);
   h.click('#edit-mode');h.click(departmentCell('hot',4));
   h.submit('#interval-form',{start:'15:30',end:'03:30'});
@@ -1071,14 +1071,14 @@ test('department calendar cells persist manual intervals and deletion without ch
   assert.equal(reloaded.q('#interval-form [name="end"]').value,'03:30');
   reloaded.click('#delete-cell-shift');
   assert.equal(reloaded.read().departmentWeeks['2026-11-16'].hot[4],'');
-  assert.equal(reloaded.read().departmentWeeks['2026-11-16'].hot[1],'work');
+  assert.equal(reloaded.read().departmentWeeks['2026-11-16'].hot[1],'day');
   reloaded.click('#undo');assert.equal(reloaded.read().departmentWeeks['2026-11-16'].hot[4],night.id);
   assert.deepEqual(reloaded.read().weeks,before.weeks);
 });
 
 test('copying a week includes independent department rows even when the source has no employee shifts', t => {
   const h=harness(t);h.setDate('2026-11-16');
-  h.click(departmentCell('hot',0));h.click('[data-brush="work"]');h.click(departmentCell('cold',5));
+  h.click(departmentCell('hot',0));h.click('[data-brush="day"]');h.click(departmentCell('cold',5));
   const source=h.read();assert.deepEqual(source.weeks,{});
   h.click('#next-week');h.click('#copy-week');
   const copied=h.read();assert.deepEqual(copied.departmentWeeks['2026-11-23'],source.departmentWeeks['2026-11-16']);
@@ -1136,4 +1136,27 @@ test('sharing the rendered PNG sends only the image file without a separate titl
   assert.equal(shared.length,1);assert.deepEqual(Object.keys(shared[0]),['files']);
   const file=shared[0].files[0];assert.equal(file.type,'image/png');assert.ok(file.size>100);
   assert.match(file.name,/\.png$/);assert.deepEqual([...buffers[0].subarray(0,8)],[137,80,78,71,13,10,26,10]);
+});
+
+
+test('background click clears the brush without painting or erasing a later empty cell',t=>{
+ const h=harness(t),person=h.addEmployee();h.click('[data-brush="midday"]');
+ const before=h.shared.get(KEY);h.q('.table-scroll').dispatchEvent(new h.w.MouseEvent('click',{bubbles:true}));
+ assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);
+ h.click(h.cell(person,0));assert.equal(h.shared.get(KEY),before);
+ h.click('[data-brush="midday"]');h.click(h.cell(person,0));
+ assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'midday');
+ h.click('[data-brush=""]');h.q('main').dispatchEvent(new h.w.MouseEvent('click',{bubbles:true}));
+ h.click(h.cell(person,1));assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'midday');
+});
+
+test('one revision picker follows erase, offers morning/night, and persists the chosen label',t=>{
+ const h=harness(t),person=h.addEmployee();
+ assert.equal(h.w.document.querySelector('[data-brush="work"]'),null);
+ const buttons=[...h.q('#shift-palette').children];assert.equal(buttons.at(-1).id,'revision-picker');assert.equal(buttons.at(-2).dataset.brush,'');
+ h.click('#revision-picker');h.click('[data-revision-period="ночь"]');h.click(h.cell(person,2));
+ const state=h.read(),selected=state.weeks[state.selectedWeek][person][2];assert.equal(state.shifts.find(x=>x.id===selected).label,'Ревизия ночь');
+ h.click(h.cell(person,2));h.click('#pick-cell-revision');h.click('[data-revision-period="утро"]');
+ const next=h.read();assert.equal(next.shifts.find(x=>x.id===next.weeks[next.selectedWeek][person][2]).label,'Ревизия утро');
+ const reloaded=harness(t,h.shared);assert.equal(reloaded.read().weeks[next.selectedWeek][person][2],next.weeks[next.selectedWeek][person][2]);
 });

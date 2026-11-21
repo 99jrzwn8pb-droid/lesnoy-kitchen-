@@ -64,7 +64,7 @@
     return checkMonth(date.toISOString().slice(0, 7));
   }
   function createBook(month) {
-    return { version: 2, people: {}, roster: [], days: {}, confirmed: {}, overrides: {}, profiles: {}, selectedMonth: monthKey(month), updatedAt: new Date().toISOString() };
+    return { version: 2, people: {}, roster: [], days: {}, confirmed: {}, overrides: {}, profiles: {}, aliases: {}, mergedRows: {}, selectedMonth: monthKey(month), updatedAt: new Date().toISOString() };
   }
   function readProfile(p) {
     record(p, 'Ставка');
@@ -126,6 +126,20 @@
       if (typeof input.updatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(input.updatedAt) || !Number.isFinite(Date.parse(input.updatedAt)) || new Date(input.updatedAt).toISOString() !== input.updatedAt) fail('Неверное время изменения табеля.');
       out.updatedAt = input.updatedAt;
     }
+    const aliases = input.aliases === undefined ? {} : record(input.aliases, 'Связи сотрудников');
+    for (const [from, to] of Object.entries(aliases)) {
+      person(from); identifier(to);
+      if (from === to || own(aliases, to) || !rosterIds.has(to)) fail('Неверная связь сотрудников.');
+      out.aliases[from] = to;
+    }
+    const mergedRows = input.mergedRows === undefined ? {} : record(input.mergedRows, 'Архив объединений');
+    if (Object.keys(mergedRows).length > 200 || JSON.stringify(mergedRows).length > 2000000) fail('Слишком большой архив объединений.');
+    for (const [sourceId, item] of Object.entries(mergedRows)) {
+      identifier(sourceId); record(item, 'Объединённая строка'); identifier(item.targetId);
+      record(item.source, 'Исходная строка');
+      if (Object.keys(item.source.mergedRows || {}).length) fail('Вложенный архив объединений не поддерживается.');
+      out.mergedRows[sourceId] = {targetId:item.targetId, source:validateBook(item.source)};
+    }
     // При миграции закрепляем ставки всех месяцев, в которых уже есть данные.
     // Последующая правка ставки по умолчанию не меняет прежние выплаты.
     if (input.version === 1) for (const m of months) {
@@ -147,7 +161,7 @@
     const order = new Map(departments.map((d, i) => [d.id, i]));
     for (const p of [...planned].sort((a, b) => (order.get(a.department) ?? 999) - (order.get(b.department) ?? 999))) {
       identifier(p.id); const name = text(p.name, 100, 'Имя сотрудника');
-      if (ids.has(p.id) || names.has(normalizeName(name))) continue;
+      if (book.aliases?.[p.id] || ids.has(p.id) || names.has(normalizeName(name))) continue;
       // Явный месячный состав задаёт команда из ведомости. Недельные строки
       // добавляются автоматически лишь для сохранения уже внесённых данных.
       if ((book.roster || []).length && !hasFinancialData(book, p.id)) continue;
@@ -156,11 +170,50 @@
     if (result.length > 200) fail('В табеле больше 200 сотрудников.');
     return result;
   }
+  // Исправляем только неоднозначность импорта: строка Excel с должностью
+  // и добавленная из графика строка без должности/оплаты с одной опечаткой.
+  // Все исходные данные нижней строки остаются в JSON-архиве объединения.
+  function mergeImportedDuplicates(book, schedule) {
+    const out = validateBook(book), weekly = schedule?.employees || [];
+    const all = employees(out, schedule);
+    const parts = name => normalizeName(name).split(' ');
+    function oneTypo(a, b) {
+      if (a === b) return true;
+      if (Math.min(a.length,b.length) < 6 || Math.abs(a.length-b.length) > 1) return false;
+      let row = Array.from({length:b.length+1},(_,i)=>i);
+      for (let i=1;i<=a.length;i++) { const old=row; row=[i]; for(let j=1;j<=b.length;j++) row[j]=Math.min(row[j-1]+1,old[j]+1,old[j-1]+(a[i-1]!==b[j-1])); }
+      return row[b.length] === 1;
+    }
+    const pairs = [];
+    for (const lower of all) {
+      if (lower.role || out.aliases[lower.id] || !weekly.some(p=>p.id===lower.id) || Object.values(out.overrides[lower.id]||{}).length) continue;
+      const profiles = [out.people[lower.id],...Object.values(out.profiles).map(row=>row[lower.id])].filter(Boolean);
+      if (profiles.some(p=>p.rate!==0)) continue;
+      const a=parts(lower.name); if(a.length<2)continue;
+      const matches=all.filter(upper=>{ const b=parts(upper.name); return upper.id!==lower.id && /^excel_/.test(upper.id) && upper.role && a.slice(1).join(' ')===b.slice(1).join(' ') && oneTypo(a[0],b[0]); });
+      if(matches.length===1)pairs.push({lower,upper:matches[0]});
+    }
+    for (const {lower,upper} of pairs) {
+      if (pairs.filter(p=>p.upper.id===upper.id).length!==1) continue;
+      const archived=createBook(out.selectedMonth);
+      archived.roster=[{...lower}];
+      for (const key of ['people','days','overrides']) if(out[key][lower.id]!==undefined) archived[key][lower.id]=out[key][lower.id];
+      for(const [m,row] of Object.entries(out.profiles))if(row[lower.id])archived.profiles[m]={[lower.id]:row[lower.id]};
+      out.mergedRows[lower.id]={targetId:upper.id,source:validateBook(archived)};
+      const target=out.days[upper.id] ||= {};
+      for(const [date,value] of Object.entries(out.days[lower.id]||{}))if(!own(target,date))target[date]={...value};
+      for(const key of ['people','days','overrides'])delete out[key][lower.id];
+      for(const row of Object.values(out.profiles))delete row[lower.id];
+      out.roster=out.roster.filter(p=>p.id!==lower.id);
+      out.aliases[lower.id]=upper.id;
+    }
+    return validateBook(out);
+  }
   function employeeMap(book, schedule) {
     const list = employees(book, schedule), byWeeklyId = Object.create(null), byName = Object.create(null);
     const byId = new Map(list.map(p => [p.id, p]));
     for (const p of list) if (!own(byName, normalizeName(p.name))) byName[normalizeName(p.name)] = p.id;
-    for (const p of schedule && Array.isArray(schedule.employees) ? schedule.employees : []) byWeeklyId[identifier(p.id)] = byId.has(p.id) ? p.id : byName[normalizeName(p.name)];
+    for (const p of schedule && Array.isArray(schedule.employees) ? schedule.employees : []) byWeeklyId[identifier(p.id)] = book.aliases?.[p.id] || (byId.has(p.id) ? p.id : byName[normalizeName(p.name)]);
     return { byWeeklyId, byName };
   }
   function resolveEmployee(book, schedule, person) {
@@ -305,5 +358,5 @@
     } catch (_) { /* Успешная запись основного табеля не отменяется ошибкой копии. */ }
     return next;
   }
-  return { STORAGE_KEY, BACKUP_KEY, createBook, validateBook, load, save, monthKey, checkMonth, dayCount, dateOf, addMonths, parseDate, normalizeName, employees, employeeMap, resolveEmployee, profile, totals, monthlyTotal, snapshotProfiles, importWeek };
+  return { STORAGE_KEY, BACKUP_KEY, createBook, validateBook, load, save, monthKey, checkMonth, dayCount, dateOf, addMonths, parseDate, normalizeName, employees, mergeImportedDuplicates, employeeMap, resolveEmployee, profile, totals, monthlyTotal, snapshotProfiles, importWeek };
 });

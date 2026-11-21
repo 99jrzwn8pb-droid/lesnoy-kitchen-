@@ -124,8 +124,8 @@
     if(C.dayCount(month)!==n)fail('Количество дней в Excel не совпадает с выбранным месяцем.');
     const totalCol=first+n,rateCol=totalCol+1,payCol=totalCol+2;
     if(!/ставк|оклад/.test(norm(cellText(ws.getCell(row,rateCol))))||!/выплат|зарплат|оплат/.test(norm(cellText(ws.getCell(row,payCol)))))fail('Не найдены столбцы ставки и выплаты.');
-    const book=C.validateBook(existingBook||C.createBook(month)),known=[...book.roster,...(schedule?.employees||[])],byName=new Map(),sourceNames=new Set(),usedIds=new Set([...known.map(x=>x.id),...Object.keys(book.people),...Object.keys(book.days)]);
-    for(const p of known){const key=norm(p.name);if(!byName.has(key))byName.set(key,new Map());byName.get(key).set(p.id,p);}
+    const book=C.validateBook(existingBook||C.createBook(month)),links=C.employeeMap(book,schedule),known=[...book.roster,...(schedule?.employees||[]).map(p=>book.roster.some(r=>norm(r.name)===norm(p.name))?{...p,id:links.byWeeklyId[p.id]||p.id}:p)],byName=new Map(),sourceNames=new Set(),usedIds=new Set([...known.map(x=>x.id),...Object.keys(book.people),...Object.keys(book.days)]);
+    for(const p of known){const key=norm(p.name);if(!byName.has(key))byName.set(key,new Map());const canonical=book.aliases?.[p.id]||p.id;byName.get(key).set(canonical,{...p,id:canonical});}
     const rows=[],footerCandidates=[],sourcePayroll=[];
     for(let r=row+1;r<=ws.rowCount;r++) {
       if(headers.some(h=>h.row===r))continue;
