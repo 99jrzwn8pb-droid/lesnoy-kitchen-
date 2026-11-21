@@ -105,6 +105,37 @@ def frozen_checks(page):
     page.locator("#ts-zoom-fit").click()
 
 
+def landscape_checks(page):
+    weekly = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
+    monthly = page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)")
+    page.set_viewport_size({"width": 844, "height": 390})
+    page.wait_for_function("document.documentElement.classList.contains('landscape-sheet')")
+    page.wait_for_timeout(150)
+    assert page.locator("#mobile-menu-toggle").is_visible()
+    assert not page.locator(".view-switch").is_visible()
+    for selector in ["#table-scroll", "#ts-body"]:
+        if selector == "#ts-body":
+            page.locator("#mobile-menu-toggle").click()
+            page.locator("#ts-open").click()
+            page.wait_for_timeout(150)
+        box = page.locator(selector).bounding_box()
+        assert box["height"] >= 388 and box["width"] >= 842, "Landscape table fills screen"
+        page.locator("#mobile-menu-toggle").click()
+        if selector == "#table-scroll":
+            assert page.locator("#mobile-menu .week-label").bounding_box()["width"] >= 120
+        palette = "#shift-palette [data-brush]" if selector == "#table-scroll" else "#ts-palette [data-ts-brush]"
+        page.locator(palette).first.click()
+        assert not page.locator("#mobile-menu").is_visible()
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function("!document.documentElement.classList.contains('landscape-sheet')")
+    assert page.locator(".view-switch").is_visible()
+    assert not page.locator("#mobile-menu-toggle").is_visible()
+    page.locator("#ts-back").click()
+    assert page.locator("#shift-palette").is_visible()
+    assert page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)") == weekly
+    assert page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)") == monthly
+
+
 def verify_page(browser, base_url, mobile=False):
     options = {"viewport": {"width": 390, "height": 844}, "device_scale_factor": 2,
                "is_mobile": True, "has_touch": True} if mobile else {
@@ -190,6 +221,9 @@ def verify_page(browser, base_url, mobile=False):
     assert page.locator("#schedule-panel").is_visible()
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
     assert not errors, f"Browser errors: {errors}"
+    if mobile:
+        landscape_checks(page)
+    assert not errors, f"Browser errors after rotation: {errors}"
     context.close()
     return {"browser": browser.browser_type.name, "viewport": label, "passed": True}
 

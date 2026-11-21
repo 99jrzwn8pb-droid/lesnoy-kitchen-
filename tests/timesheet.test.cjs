@@ -105,10 +105,10 @@ test('fractional confirmed shifts, draft cells, fixed salary, manual pay and und
 
 test('weekly import creates drafts once and preserves a confirmed correction', t=>{
   const h=harness(t), original=h.shared.get(WEEKLY);
-  h.click('#ts-import-week');h.submit('#ts-week-form',{week:'2026-11-16'});
+  h.click('#ts-import-week');
   assert.equal(h.read().days['test-shift']['2026-11-16'].confirmed,false);
   h.click(h.cell('test-shift','2026-11-16'));h.submit('#ts-cell-form',{value:'1.5',confirmed:true,note:'Тестовая фактическая смена'});
-  h.click('#ts-import-week');h.submit('#ts-week-form',{week:'2026-11-16'});
+  h.click('#ts-import-week');
   assert.deepEqual(h.read().days['test-shift']['2026-11-16'],{value:1.5,confirmed:true,note:'Тестовая фактическая смена'});
   assert.equal(h.shared.get(WEEKLY),original);
 });
@@ -173,4 +173,19 @@ test('PNG preview renders a real full-month image and shares only the image file
   assert.deepEqual(Object.keys(h.shares[0]),['files'],'Native share must not add text or a URL');
   assert.equal(h.shares[0].files.length,1);assert.equal(h.shares[0].files[0].type,'image/png');
   assert.deepEqual(await bytes(h,h.shares[0].files[0]),png);
+});
+
+
+test('weekly sync button transfers only the displayed week without changing weekly data',t=>{
+ const shared=storageFixture(),state=JSON.parse(shared.get(WEEKLY));
+ state.weeks['2026-11-09']={'test-shift':['day','day','day','day','day','day','day']};
+ shared.set(WEEKLY,JSON.stringify(state));const h=harness(t,shared),before=shared.get(WEEKLY);
+ h.click('#ts-back');h.click('#sync-timesheet');
+ assert.equal(h.q('#schedule-panel').hidden,false);
+ assert.equal(h.read().days['test-shift']['2026-11-16'].value,1);
+ assert.equal(h.read().days['test-shift']['2026-11-16'].confirmed,false);
+ assert.equal(h.read().days['test-shift']['2026-11-09'],undefined);
+ assert.equal(Monthly.totals(h.read(),'test-shift','2026-11').amount,0);
+ const saved=shared.get(MONTHLY);h.click('#sync-timesheet');assert.equal(shared.get(MONTHLY),saved);
+ assert.equal(shared.get(WEEKLY),before);
 });

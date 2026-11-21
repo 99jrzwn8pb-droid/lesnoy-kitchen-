@@ -83,9 +83,12 @@ function editPay(id){
  modal('Выплата · '+person.name,'<form id="ts-pay-form" class="form-grid"><p class="dialog-note">Автоматический расчёт: '+money(total.automaticAmount)+'. Пустое поле возвращает автоматический расчёт.</p><label class="field">Ручная выплата за месяц<input name="amount" inputmode="decimal" value="'+esc(total.override===undefined?'':total.override)+'"></label>'+actions()+'</form>',body=>{const f=body.querySelector('form');f.onsubmit=e=>{e.preventDefault();const raw=f.elements.amount.value.trim(),amount=Number(raw.replace(',','.'));if(raw&&(!Number.isFinite(amount)||amount<0||amount>10000000))return formError(f,Error('Введите сумму от 0 до 10 000 000.'));if(commit(next=>{const row=next.overrides[id]||={};if(raw)row[month]=amount;else delete row[month];},'Выплата сохранена'))closeDialog();};});
 }
 function undo(){if(!history.length||external)return;book=history.pop();month=book.selectedMonth;persist();render();toast('Изменение табеля отменено');}
-function importWeekDialog(){
- const week=C.previousWeek(C.monday(new Date()));
- modal('Перенести неделю из графика','<form id="ts-week-form" class="form-grid"><label class="field">Понедельник недели<input name="week" type="date" value="'+week+'" min="1900-01-01" max="2199-12-29" required></label><p class="dialog-note">Заполненные ячейки сохранятся. Смены добавятся черновиками: подтвердите фактическую работу после проверки.</p>'+actions('Перенести')+'</form>',body=>{const f=body.querySelector('form');f.onsubmit=e=>{e.preventDefault();try{const week=f.elements.week.value;C.weekDates(week);const result=T.importWeek(book,schedule(),week);if(!result.added)return formError(f,Error('Новых смен нет. Заполненные дни не заменяются.'));if(commit(next=>Object.assign(next,result.book),'Добавлено черновиков: '+result.added)){month=week.slice(0,7);book.selectedMonth=month;persist();render();closeDialog();}}catch(error){formError(f,error);}};});
+function syncOpenWeek(){
+ try{
+  const current=schedule(),week=current.selectedWeek,result=T.importWeek(book,current,week);
+  if(!result.added){toast('Новых смен нет: заполненные дни табеля сохранены.');return;}
+  if(commit(next=>{Object.assign(next,result.book);next.selectedMonth=week.slice(0,7);},'Перенесено черновиков: '+result.added+' · Заполненные дни сохранены')){month=week.slice(0,7);render();}
+ }catch(error){toast('Не удалось перенести неделю: '+error.message);}
 }
 function confirmMonth(){if(!confirm('Подтвердить все черновики за '+monthName(month)+'? Они войдут в расчёт выплаты.'))return;commit(next=>{for(const row of Object.values(next.days))for(const [date,x]of Object.entries(row))if(date.startsWith(month+'-'))x.confirmed=true;},'Смены месяца подтверждены');}
 function download(name,data,type){const blob=data instanceof Blob?data:new Blob([data],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
@@ -126,7 +129,7 @@ function paste(event){
 $('ts-open').onclick=open;$('ts-back').onclick=close;
 $('ts-month').onchange=e=>setMonth(e.target.value);$('ts-prev').onclick=()=>{try{setMonth(T.addMonths(month,-1));}catch(e){toast(e.message);}};$('ts-next').onclick=()=>{try{setMonth(T.addMonths(month,1));}catch(e){toast(e.message);}};
 $('ts-palette').onclick=e=>{const b=e.target.closest('[data-ts-brush]');if(b){brush=b.dataset.tsBrush;render();}};
-$('ts-undo').onclick=undo;$('ts-addemployee').onclick=()=>editPerson();$('ts-import-week').onclick=importWeekDialog;$('ts-confirm').onclick=confirmMonth;
+$('ts-undo').onclick=undo;$('ts-addemployee').onclick=()=>editPerson();$('ts-import-week').onclick=syncOpenWeek;$('sync-timesheet').onclick=syncOpenWeek;$('ts-confirm').onclick=confirmMonth;
 $('ts-export').onclick=exportExcel;$('ts-png').onclick=pngDialog;$('ts-backup').onclick=backupJSON;$('ts-csv').onclick=exportCSV;$('ts-retry-save').onclick=persist;
 $('ts-restore').onclick=()=>$('ts-file').click();$('ts-file').onchange=e=>{const file=e.target.files[0];e.target.value='';importFile(file);};
 $('ts-zoom-in').onclick=()=>view?.zoomBy(1.2);$('ts-zoom-out').onclick=()=>view?.zoomBy(1/1.2);$('ts-zoom-fit').onclick=()=>view?.fit();$('ts-freeze').onchange=e=>view?.setFrozen(e.target.checked);
