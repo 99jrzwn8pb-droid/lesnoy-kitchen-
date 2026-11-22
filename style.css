@@ -84,3 +84,30 @@ html.sheet-app,html.sheet-app body{width:100%;height:100%;overflow:hidden;oversc
 .monthly-active #mobile-menu [data-mobile-panel="week"],html:not(.monthly-active) #mobile-menu [data-mobile-panel="month"]{display:none!important}
 
 .erase-icon{font-size:19px;line-height:1;display:inline-block}.revision-options{display:grid;gap:10px}.revision-options .button{min-height:44px}
+
+/* Выбор недели слева; перенос и отмена — вертикально справа. */
+.sheet-app .week-toolbar,#mobile-menu .week-toolbar{display:flex;flex-wrap:nowrap;align-items:center;gap:8px}
+.week-navigation{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0}
+.sheet-app .week-navigation .week-picker{flex:1 1 auto;min-width:0;max-width:520px}
+.week-transfer-actions{display:flex;flex-direction:column;gap:4px;flex:0 0 auto;align-self:stretch;justify-content:center}
+.week-transfer-actions>.button{width:100%;min-height:30px;font-size:11px;padding:5px 10px}
+@media(max-width:650px){
+ .week-navigation{flex-direction:column;align-items:stretch;gap:3px}
+ .sheet-app .week-navigation .week-picker{width:100%;gap:4px}
+ .week-navigation #copy-week{align-self:flex-start}
+ .week-transfer-actions>.button{font-size:10px;padding:5px 7px;min-height:30px}
+}
+#mobile-menu .week-navigation{flex-direction:column;align-items:stretch;gap:4px}
+#mobile-menu .week-navigation .week-picker{flex:0 0 auto;width:100%;gap:4px}
+#mobile-menu .week-navigation #copy-week{align-self:flex-start;flex:0 0 auto;width:auto}
+#mobile-menu .week-transfer-actions #sync-timesheet{flex:0 0 auto;font-size:10px;min-height:30px;padding:5px 7px}
+
+.week-shortcuts{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+#mobile-menu .week-transfer-actions>.button{font-size:10px;min-height:30px;padding:5px 7px}
+#mobile-menu .week-shortcuts #today span{display:none}
+#mobile-menu .week-shortcuts #today{width:30px;min-height:30px;padding:5px}
+
+.png-actions{align-items:center}
+.png-actions .button.small{min-height:32px;padding:5px 9px;font-size:11px}
+.png-actions .button.small svg{width:15px;height:15px}
+.png-preview+.dialog-note{font-size:11px;margin:8px 0 12px}

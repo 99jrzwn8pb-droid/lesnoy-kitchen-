@@ -15,7 +15,7 @@ const KEY = 'lesnoy-kitchen:v1';
 const ROSTER_KEY = 'lesnoy-kitchen:roster:v1';
 const Core = require(require('./site-path.cjs')('core.js'));
 
-function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kitchen/') {
+function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kitchen/', chooseInitialShift = true) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', error => errors.push(error.message));
@@ -102,6 +102,8 @@ function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kit
     q('#import-file').onchange({target: {files: [file], value: 'fake.json'}});
     await new Promise(resolve => setImmediate(resolve));
   };
+  // Most scenarios start with the user explicitly selecting their paint tool.
+  if (chooseInitialShift) w.document.querySelector('#shift-palette [data-brush]:not([data-brush=""])')?.click();
   return {w, q, click, pointer, submit, read, setDate, addEmployee, cell, importData, shared, confirmations, openedAt, requests,
     setFailWrites(value) { failWrites = value; },
     setConfirmAnswer(value) { confirmAnswer = value; }};
@@ -1176,4 +1178,16 @@ test('moving, cancelling or releasing a press prevents hiding, and context-menu 
  for(const type of ['pointerup','pointercancel','pointermove']){event('pointerdown');event(type,30);await new Promise(r=>setTimeout(r,650));assert.equal(h.q('#editor-dialog').open,false);}
  event('contextmenu');assert.equal(h.q('#editor-dialog').open,true);h.click('#close-dialog');
  assert.equal(h.read().shifts.find(x=>x.id==='midday').hidden,undefined);
+});
+
+
+test('initial load and reload have no selected shift until the user chooses one',t=>{
+ const shared=new Map(),h=harness(t,shared,'https://lesnoy.example/kitchen/',false),person=h.addEmployee();
+ assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);
+ const before=shared.get(KEY);h.click(h.cell(person,0));assert.equal(shared.get(KEY),before);
+ h.click('[data-brush="day"]');h.click(h.cell(person,0));assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'day');
+ const reload=harness(t,shared,'https://lesnoy.example/kitchen/',false);
+ assert.equal(reload.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);
+ const saved=shared.get(KEY);reload.click(reload.cell(person,1));assert.equal(shared.get(KEY),saved);
+ reload.click(reload.cell(person,0));assert.equal(reload.q('#editor-dialog').open,true,'Existing cells still open for editing');
 });

@@ -30,7 +30,7 @@
   if (normalizeEmployeePhones(state)) state.updatedAt = new Date().toISOString();
   const visibleShifts = (includeHidden=false) => C.selectableShifts(state,{includeHidden}).filter(s => s.label.trim().toLocaleUpperCase('ru-RU') !== 'Р');
   const ordinaryShifts = () => visibleShifts().filter(s => !/^ревизия(?:\s|$|[:–-])/i.test(s.label.trim()));
-  let brush = ordinaryShifts()[0]?.id ?? null;
+  let brush = null;
   let editMode = false;
   let history = [];
   let toastTimer;
@@ -448,7 +448,7 @@
     modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">Страница закреплена. Сжимайте два пальца для уменьшения графика, разводите для увеличения. Одним пальцем перемещайте лист. Имена, даты и смены масштабируются вместе. Кнопка «Весь график» возвращает общий вид. На Mac также работают трекпад и кнопки «−»/«+». Нажмите телефон, чтобы позвонить.</p>`);
   }
   function pngDialog() {
-    modal('График для команды',`<p class="dialog-note">Для печати: А4 → альбомная ориентация → вписать в страницу. Используйте скачанный файл PNG.</p><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
+    modal('График сотрудников',`<img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><div class="png-actions"><button id="png-share" class="button primary" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V2m-4 4 4-4 4 4M5 9H3v8h14V9h-2"/></svg><span>Поделиться</span></button><a id="png-save" class="button small" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 12v5h14v-5"/></svg><span>Скачать</span></a></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
       const generate = async () => {
         const seq = ++exportSequence;
         body.querySelector('#png-save').hidden = true; body.querySelector('#png-share').hidden = true;
@@ -460,7 +460,7 @@
           if (exportURL) URL.revokeObjectURL(exportURL);
           exportURL = URL.createObjectURL(result.blob);
           const img = body.querySelector('#png-preview'); img.src = exportURL; img.hidden = false;
-          const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.textContent = 'Скачать PNG'; a.hidden = false;
+          const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.hidden = false;
           body.querySelector('#png-status').textContent = `Вся таблица · ${result.width} × ${result.height} px · с телефонами`;
           const shareFile = new File([result.blob],result.filename,{type:'image/png'});
           const share = body.querySelector('#png-share');

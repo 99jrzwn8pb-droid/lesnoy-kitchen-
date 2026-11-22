@@ -10,14 +10,18 @@
 .view-switch{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
 :is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip){
   border-radius:999px;
-  border-color:rgba(125,125,125,.25);
-  background:linear-gradient(165deg,rgba(255,255,255,.94),rgba(255,255,255,.52));
+  border-color:rgba(125,125,125,.14);
+  background:linear-gradient(165deg,rgba(255,255,255,.72),rgba(255,255,255,.24));
   color:#383838;
   box-shadow:inset 0 1px 0 #ffffffec,0 2px 5px #35353510;
   transition:background-color .16s ease,box-shadow .16s ease,border-color .16s ease;
 }
-:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip):hover{background:linear-gradient(165deg,#ffffff,#efefefcc);border-color:#91919199}
-:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button.primary,[aria-pressed="true"]){
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip):hover{background:linear-gradient(165deg,#ffffffc9,#ffffff70);border-color:#91919155}
+/* Основные действия тоже светлые; тёмный эффект остаётся у выбора. */
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) .button.primary:not([aria-pressed="true"]){
+  color:#383838;background:linear-gradient(155deg,rgba(255,255,255,.82),rgba(232,232,232,.38));border-color:#ffffffa6;box-shadow:inset 0 1px 0 #ffffffc9,0 3px 8px #32323212;
+}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip)[aria-pressed="true"]{
   color:#ffffff;
   background:linear-gradient(155deg,rgba(102,102,102,.96),rgba(61,61,61,.97));
   border-color:rgba(70,70,70,.65);

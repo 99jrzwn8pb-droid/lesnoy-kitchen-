@@ -7,17 +7,17 @@
   <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=20261121-palette">
-  <link rel="stylesheet" href="glass.css?v=3">
+  <link rel="stylesheet" href="style.css?v=20261122-week-toolbar">
+  <link rel="stylesheet" href="glass.css?v=4">
   <script src="core.js?v=12" defer></script>
   <script src="png.js?v=15" defer></script>
   <script src="viewport.js?v=7" defer></script>
-  <script src="app.js?v=16" defer></script>
+  <script src="app.js?v=18" defer></script>
   <script src="vendor/exceljs-4.4.0.min.js" defer></script>
   <script src="timesheet-core.js?v=4" defer></script>
   <script src="timesheet-io.js?v=4" defer></script>
   <script src="timesheet-viewport.js?v=2" defer></script>
-  <script src="timesheet.js?v=7" defer></script>
+  <script src="timesheet.js?v=8" defer></script>
   <script src="mobile.js?v=1" defer></script>
 </head>
 <body>
@@ -40,15 +40,21 @@
     <nav class="view-switch" aria-label="Вид таблицы"><button id="ts-back" class="button small" aria-pressed="true">Недельный график</button><button id="ts-open" class="button small" aria-pressed="false">Месячный табель</button></nav>
     <section id="schedule-panel" class="schedule-card" aria-label="Недельный график">
       <div class="week-toolbar">
+        <div class="week-navigation">
         <div class="week-picker">
           <button id="prev-week" class="button square" aria-label="Предыдущая неделя">‹</button>
           <div class="week-label"><span class="eyebrow">РАБОЧАЯ НЕДЕЛЯ <span id="week-number"></span></span><label class="date-control"><strong id="week-range"></strong><span aria-hidden="true">⌄</span><input id="week-date" type="date" min="1900-01-01" max="2199-12-29" aria-label="Выбрать любую дату нужной недели"></label></div>
           <button id="next-week" class="button square" aria-label="Следующая неделя">›</button>
-          <button id="today" class="button subtle small" aria-label="Текущая неделя" title="Текущая неделя"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3ZM6 2v5m8-5v5M3 9h14"/></svg><span>Текущая</span></button>
         </div>
+        <div class="week-shortcuts">
+          <button id="today" class="button subtle small" aria-label="Текущая неделя" title="Текущая неделя"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3ZM6 2v5m8-5v5M3 9h14"/></svg><span>Текущая</span></button>
+        <button id="copy-week" class="button" aria-label="Скопировать предыдущую неделю" title="Скопировать предыдущую неделю"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6V3h10v11h-3M3 6h11v11H3Z"/></svg><span>Из прошлой недели</span></button>
+        </div>
+        </div>
+        <div class="week-transfer-actions" role="group" aria-label="Перенос недели в табель">
         <button id="sync-timesheet" class="button" title="Перенести открытую неделю и убрать ранее перенесённые смены, удалённые из графика">В табель</button>
         <button id="cancel-timesheet-transfer" class="button small" title="Убрать из табеля все переносы открытой недели" disabled>Отменить перенос</button>
-        <button id="copy-week" class="button" aria-label="Скопировать предыдущую неделю" title="Скопировать предыдущую неделю"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6V3h10v11h-3M3 6h11v11H3Z"/></svg><span>Из прошлой недели</span></button>
+        </div>
       </div>
 
       <div class="paint-toolbar">

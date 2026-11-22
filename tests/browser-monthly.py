@@ -56,6 +56,14 @@ def png_quality_checks(page, mobile, weekly=False):
     width = struct.unpack(">I", data[16:20])[0]
     assert width > 4000, "High quality PNG is automatic on desktop and phone"
     assert page.locator(save).get_attribute("download").endswith("-a4.png")
+    if weekly:
+        assert page.locator('#dialog-title').inner_text()=='График сотрудников'
+    assert page.evaluate("""weekly=>{
+      const dialog=document.querySelector(weekly?'#editor-dialog':'#ts-dialog'),r=e=>e.getBoundingClientRect();
+      const img=dialog.querySelector('.png-preview'),status=dialog.querySelector('.png-preview+.dialog-note'),buttons=dialog.querySelector('.png-actions'),share=buttons.querySelector('button'),save=buttons.querySelector('a');
+      return !dialog.innerText.includes('Для печати:') && r(img).bottom<=r(status).top && buttons.firstElementChild===share && share.classList.contains('primary') && !save.classList.contains('primary') && save.classList.contains('small') && share.querySelector('svg') && save.querySelector('svg');
+    }""",weekly), 'PNG dialog shows size below preview, share first/primary, compact download and both icons'
+
 
 
 def totals(page, person="demo-a"):
@@ -94,7 +102,7 @@ def edit_checks(page):
 def pan_wheel(page, dx, dy):
     # Playwright has no mouse-wheel protocol in mobile WebKit. Dispatch the
     # same DOM event there; desktop checks use the native browser protocol.
-    if page.context.browser.browser_type.name == "webkit" and page.viewport_size["width"] < 650:
+    if page.context.browser.browser_type.name == "webkit" and page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.dispatch_event("#ts-body", "wheel", {"deltaX": dx, "deltaY": dy,
                             "bubbles": True, "cancelable": True})
     else:
@@ -195,6 +203,106 @@ def transfer_and_hold_checks(page):
     assert page.locator(target).is_visible()
 
 
+def toolbar_layout_checks(page):
+    assert page.evaluate("""() => {
+      const r=k=>document.querySelector(k).getBoundingClientRect(),a=r('#sync-timesheet'),b=r('#cancel-timesheet-transfer'),nav=r('.week-navigation'),bar=r('.week-toolbar'),label=r('.week-label');
+      return Math.abs(a.left-b.left)<1 && Math.abs(a.right-b.right)<1 && a.bottom<=b.top && nav.right<a.left && label.width>=110 && a.right<=bar.right && b.bottom<=bar.bottom;
+    }"""), 'Transfer buttons stack on the right; week picker and arrows have room'
+
+
+def menu_click(page,selector):
+    if not page.locator('#mobile-menu').is_visible():
+        page.locator('#mobile-menu-toggle').click()
+    page.locator(selector).click()
+
+
+def close_mobile_menu(page):
+    if page.locator('#mobile-menu').is_visible():
+        page.locator('#mobile-menu-toggle').click()
+
+
+def landscape_function_checks(page):
+    # Exercise actual controls while they live in the landscape minibar.
+    menu_click(page,'#ts-open')
+    menu_click(page,'#ts-backup')
+    backup_path=ARTIFACTS / (page.context.browser.browser_type.name+'-landscape-backup.json')
+    raw=download_file(page,'#ts-backup',backup_path)
+    assert json.loads(raw)['type']=='lesnoy-combined-backup'
+    close_mobile_menu(page)
+    value=totals(page)['amount']
+    page.locator('#ts-table [data-ts-person="demo-a"][data-date="2026-11-01"]').click()
+    page.locator('#ts-cell-form [name=value]').fill('1,5')
+    submit(page,'#ts-cell-form')
+    assert totals(page)['amount']==value+2000
+    menu_click(page,'#ts-undo')
+    assert totals(page)['amount']==value
+    page.once('dialog',lambda d:d.accept())
+    page.locator('#ts-confirm').click()
+    assert totals(page)['amount']==value+2000
+    page.locator('#ts-undo').click()
+    assert totals(page)['amount']==value
+    page.locator('#ts-freeze').uncheck()
+    page.locator('#ts-freeze').check()
+    page.locator('#ts-zoom-in').click()
+    close_mobile_menu(page)
+    assert page.locator('[data-frozen-edge=left]').is_visible()
+    pan_wheel(page,120,100)
+    menu_click(page,'#ts-zoom-fit')
+    excel=download_file(page,'#ts-export',ARTIFACTS / 'landscape-2026-11.xlsx')
+    assert excel.startswith(b'PK')
+    page.locator('#ts-file').set_input_files(str(ARTIFACTS / 'landscape-2026-11.xlsx'))
+    page.locator('#ts-import-apply').wait_for(state='visible')
+    page.locator('#ts-import-apply').click()
+    assert totals(page)['amount']==value, 'Landscape Excel import preserves payroll'
+    page.locator('#ts-png').click()
+    page.locator('#ts-png-download').wait_for(state='visible')
+    print_density(download_file(page,'#ts-png-download',ARTIFACTS / 'landscape-monthly.png'))
+    page.locator('#ts-dialog-close').click()
+    page.locator('#ts-back').click()
+    menu_click(page,'#next-week')
+    page.wait_for_function("LesnoySchedule.getState().selectedWeek==='2026-11-23'")
+    page.locator('#prev-week').click()
+    page.locator('#week-date').fill('2026-11-18')
+    page.locator('#week-date').dispatch_event('change')
+    assert page.evaluate('LesnoySchedule.getState().selectedWeek')=='2026-11-16'
+    toolbar_layout_checks(page)
+    close_mobile_menu(page)
+    day='#schedule-body [data-person="demo-a"][data-day="0"]'
+    page.locator(day).click()
+    page.locator('#interval-form [name=start]').fill('12:00')
+    page.locator('#interval-form [name=end]').fill('23:00')
+    page.locator('#interval-form button[type=submit]').click()
+    menu_click(page,'#undo')
+    page.locator('#sync-timesheet').click()
+    assert not page.locator('#cancel-timesheet-transfer').is_disabled()
+    page.once('dialog',lambda d:d.accept())
+    page.locator('#cancel-timesheet-transfer').click()
+    assert page.locator('#cancel-timesheet-transfer').is_disabled()
+    page.locator('#zoom-in').click()
+    close_mobile_menu(page)
+    before=page.locator('#schedule-surface').get_attribute('style')
+    for event,x in [('pointerdown',500),('pointermove',450),('pointerup',450)]:
+        page.locator('#table-scroll').dispatch_event(event,{'button':0,'buttons':0 if event=='pointerup' else 1,'pointerId':21,'pointerType':'touch','clientX':x,'clientY':200 if event=='pointerdown' else 150})
+    page.wait_for_timeout(100)
+    assert page.locator('#schedule-surface').get_attribute('style')!=before
+    menu_click(page,'#zoom-fit')
+    target='#shift-palette [data-brush="day"]'
+    page.locator(target).dispatch_event('contextmenu')
+    page.locator('#hide-time-button').click()
+    page.locator('#manage-shifts').click()
+    page.locator('[data-show-shift="day"]').click()
+    page.locator('#close-dialog').click()
+    page.locator('#export-png').click()
+    page.locator('#png-save').wait_for(state='visible')
+    print_density(download_file(page,'#png-save',ARTIFACTS / 'landscape-weekly.png'))
+    page.locator('#close-dialog').click()
+    close_mobile_menu(page)
+    page.once('dialog',lambda d:d.accept())
+    with page.expect_navigation(wait_until='networkidle'):
+        page.locator('#ts-file').set_input_files(str(backup_path))
+    page.wait_for_function("Boolean(window.LesnoyTimesheet)&&document.documentElement.classList.contains('landscape-sheet')")
+
+
 def landscape_checks(page):
     weekly = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     monthly = page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)")
@@ -216,14 +324,15 @@ def landscape_checks(page):
         palette = "#shift-palette [data-brush]" if selector == "#table-scroll" else "#ts-palette [data-ts-brush]"
         page.locator(palette).first.click()
         assert not page.locator("#mobile-menu").is_visible()
+    landscape_function_checks(page)
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_function("!document.documentElement.classList.contains('landscape-sheet')")
     assert page.locator(".view-switch").is_visible()
     assert not page.locator("#mobile-menu-toggle").is_visible()
     page.locator("#ts-back").click()
     assert page.locator("#shift-palette").is_visible()
-    assert page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)") == weekly
-    assert page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)") == monthly
+    assert {k:v for k,v in json.loads(page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")).items() if k!="updatedAt"} == {k:v for k,v in json.loads(weekly).items() if k!="updatedAt"}
+    assert {k:v for k,v in json.loads(page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)")).items() if k!="updatedAt"} == {k:v for k,v in json.loads(monthly).items() if k!="updatedAt"}
 
 
 def verify_page(browser, base_url, mobile=False):
@@ -253,8 +362,10 @@ def verify_page(browser, base_url, mobile=False):
       localStorage.setItem(t.STORAGE_KEY,JSON.stringify(t.validateBook(book)));
     }""")
     page.reload(wait_until="networkidle")
+    assert page.locator('#shift-palette [aria-pressed="true"]').count()==0, "Reload never preselects a shift"
     assert page.locator("#schedule-panel").is_visible(), "Weekly schedule is visible"
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
+    toolbar_layout_checks(page)
     page.locator("#ts-open").click()
     assert not errors, f"Browser errors: {errors}"
     assert page.locator("#ts-panel").is_visible(), "Monthly panel opens"
@@ -265,8 +376,8 @@ def verify_page(browser, base_url, mobile=False):
         const s=getComputedStyle(e);return [s.font,s.color,s.backgroundColor,s.padding,s.border,s.width,s.height];
       }));
       const before=snapshot();link.disabled=true;const base=snapshot();link.disabled=false;
-      const bg=getComputedStyle(document.querySelector('#export-png')).backgroundImage;
-      return before===base && bg.includes('102, 102, 102') && bg.includes('61, 61, 61');
+      const bg=getComputedStyle(document.querySelector('#ts-open')).backgroundImage;
+      return before===base && bg.includes('102, 102, 102') && bg.includes('61, 61, 61') && getComputedStyle(document.querySelector('#export-png')).backgroundImage.includes('0.38');
     }"""), "Grey glass menu preserves all table cell styles"
     weekly_before = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     page.locator("#ts-next").click()
