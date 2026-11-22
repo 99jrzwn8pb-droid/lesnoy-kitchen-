@@ -537,7 +537,7 @@ test('external-tab change freezes writes and calendar boundaries report a useful
   assert.match(h.q('#storage-warning').textContent, /приостановлено/);
 });
 
-test('PNG button runs the real renderer, reveals a download and regenerates without phones', async t => {
+test('PNG button automatically exports high quality with phones and no option switches', async t => {
   const h = harness(t);
   const person = h.addEmployee(); h.click(h.cell(person, 0));
   let native;
@@ -555,21 +555,17 @@ test('PNG button runs the real renderer, reveals a download and regenerates with
     return canvas;
   };
   h.click('#export-png');
-  await new Promise(resolve => setImmediate(resolve));
+  for (let i=0; i<100 && h.q('#png-save').hidden; i++) await new Promise(resolve => setTimeout(resolve,10));
   assert.equal(h.q('#png-save').hidden, false);
   assert.equal(h.q('#png-preview').hidden, false);
-  assert.match(h.q('#png-save').download, /^lesnoy-grafik-\d{4}-\d{2}-\d{2}\.png$/);
+  assert.match(h.q('#png-save').download, /^lesnoy-grafik-\d{4}-\d{2}-\d{2}-a4\.png$/);
   assert.match(h.q('#png-status').textContent, /Вся таблица.*с телефонами/);
   assert.equal(encoded.length, 1);
   assert.deepEqual([...encoded[0].subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   const image = await native.loadImage(encoded[0]);
-  assert.equal(image.width, 2400);
-  h.q('#png-phones').checked = false;
-  h.q('#png-phones').dispatchEvent(new h.w.Event('change', {bubbles: true}));
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(encoded.length, 2);
-  assert.match(h.q('#png-status').textContent, /без телефонов/);
-  assert.equal(h.q('#png-save').hidden, false);
+  assert.equal(image.width, 4800);
+  assert.equal(h.w.document.querySelector('#png-phones'), null);
+  assert.equal(h.w.document.querySelector('#png-print'), null);
   h.click('#close-dialog');
   assert.equal(h.q('#editor-dialog').open, false);
 });

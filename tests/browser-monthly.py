@@ -48,19 +48,14 @@ def print_density(png):
 
 
 def png_quality_checks(page, mobile, weekly=False):
-    quality = "#png-print" if weekly else "#ts-png-print"
     save = "#png-save" if weekly else "#ts-png-download"
-    assert page.locator(quality).is_checked() == (not mobile)
-    widths = {}
-    for enabled in [False, True, False]:
-        page.locator(quality).set_checked(enabled)
-        page.locator(save).wait_for(state="visible")
-        data = download_file(page, save, ARTIFACTS / ("weekly" if weekly else "monthly") / ("print.png" if enabled else "normal.png"))
-        widths[enabled] = struct.unpack(">I", data[16:20])[0]
-        if enabled:
-            print_density(data)
-            assert "А4" in page.locator(save).inner_text()
-    assert widths[True] > widths[False], "Print mode draws additional pixels"
+    assert page.locator("#png-print, #png-phones, #ts-png-print").count() == 0
+    page.locator(save).wait_for(state="visible")
+    data = download_file(page, save, ARTIFACTS / ("weekly" if weekly else "monthly") / "print.png")
+    print_density(data)
+    width = struct.unpack(">I", data[16:20])[0]
+    assert width > 4000, "High quality PNG is automatic on desktop and phone"
+    assert page.locator(save).get_attribute("download").endswith("-a4.png")
 
 
 def totals(page, person="demo-a"):
@@ -220,12 +215,21 @@ def verify_page(browser, base_url, mobile=False):
     page.locator("#ts-open").click()
     assert not errors, f"Browser errors: {errors}"
     assert page.locator("#ts-panel").is_visible(), "Monthly panel opens"
-    assert page.locator("#ts-month").input_value() == "2026-11"
+    page.wait_for_function("document.querySelector('#ts-month').value === '2026-11'")
+    assert page.evaluate("""() => {
+      const link=document.querySelector('link[href^="glass.css"]');
+      const snapshot=()=>JSON.stringify([...document.querySelectorAll('#schedule td,#schedule th,#ts-table td,#ts-table th')].map(e=>{
+        const s=getComputedStyle(e);return [s.font,s.color,s.backgroundColor,s.padding,s.border,s.width,s.height];
+      }));
+      const before=snapshot();link.disabled=true;const base=snapshot();link.disabled=false;
+      const bg=getComputedStyle(document.querySelector('#export-png')).backgroundImage;
+      return before===base && bg.includes('102, 102, 102') && bg.includes('61, 61, 61');
+    }"""), "Grey glass menu preserves all table cell styles"
     weekly_before = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     page.locator("#ts-next").click()
-    assert page.locator("#ts-month").input_value() == "2026-12"
+    page.wait_for_function("document.querySelector('#ts-month').value === '2026-12'")
     page.locator("#ts-prev").click()
-    assert page.locator("#ts-month").input_value() == "2026-11"
+    page.wait_for_function("document.querySelector('#ts-month').value === '2026-11'")
     edit_checks(page)
     frozen_checks(page)
     assert not errors, f"Browser errors: {errors}"
