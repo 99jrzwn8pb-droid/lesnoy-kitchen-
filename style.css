@@ -118,3 +118,10 @@ html.sheet-app,html.sheet-app body{width:100%;height:100%;overflow:hidden;oversc
 .sheet-app .week-navigation .week-picker>.square{flex-shrink:0}
 @media(max-width:650px){.sheet-app .week-navigation .week-label{max-width:clamp(110px,38vw,180px)}}
 #mobile-menu .week-navigation .week-label{max-width:160px}
+
+.week-shortcuts{margin-left:auto;justify-content:flex-end}
+@media(max-width:650px){.week-shortcuts{align-self:flex-end}}
+#mobile-menu .week-shortcuts{align-self:flex-end}
+.week-shortcuts .button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.hold-help{position:fixed;z-index:100;max-width:min(260px,calc(100vw - 24px));padding:9px 12px;border-radius:14px;border:1px solid #ffffffd9;background:#f9f9f9ed;color:#333;font:12px/1.45 Arial,Helvetica,sans-serif;box-shadow:inset 0 1px 0 #fff,0 5px 20px #0002;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);pointer-events:none}
+.hold-help::after{content:"";position:absolute;top:100%;left:var(--arrow-left,50%);margin-left:-5px;border:5px solid transparent;border-top-color:#f9f9f9ed}

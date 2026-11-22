@@ -216,8 +216,26 @@ def toolbar_layout_checks(page):
     assert page.evaluate("""() => {
       const r=k=>document.querySelector(k).getBoundingClientRect(),a=r('#sync-timesheet'),b=r('#cancel-timesheet-transfer'),nav=r('.week-navigation'),bar=r('.week-toolbar'),label=r('.week-label');
       const prev=r('#prev-week'),next=r('#next-week');
-      return Math.abs((label.left-prev.right)-(next.left-label.right))<1 && Math.abs(prev.width-next.width)<1 && Math.abs(prev.top-next.top)<1 && Math.abs(a.left-b.left)<1 && Math.abs(a.right-b.right)<1 && a.bottom<=b.top && nav.right<a.left && label.width>=110 && a.right<=bar.right && b.bottom<=bar.bottom;
+      return Math.abs((label.left-prev.right)-(next.left-label.right))<1 && Math.abs(prev.width-next.width)<1 && Math.abs(prev.top-next.top)<1 && Math.abs(r('.week-shortcuts').right-nav.right)<1 && Math.abs(a.left-b.left)<1 && Math.abs(a.right-b.right)<1 && a.bottom<=b.top && nav.right<a.left && label.width>=110 && a.right<=bar.right && b.bottom<=bar.bottom;
     }"""), 'Transfer buttons stack on the right; week picker and arrows have room'
+
+
+def shortcut_help_checks(page):
+    before=page.evaluate('JSON.stringify(LesnoySchedule.getState())')
+    for selector,word in [('#today','текущую'),('#copy-week','предыдущей')]:
+        button=page.locator(selector)
+        button.dispatch_event('pointerdown',{'button':0,'isPrimary':True,'pointerId':4,'clientX':10,'clientY':10})
+        tip=page.locator('[role=tooltip]')
+        tip.wait_for(state='visible')
+        assert word in tip.inner_text()
+        b,t=button.bounding_box(),tip.bounding_box()
+        assert b and t, (selector, page.locator('#mobile-menu').is_visible(), page.evaluate('document.activeElement.id'))
+        assert t['y']+t['height']<=b['y'] and t['x']>=0 and t['x']+t['width']<=page.viewport_size['width']
+        button.dispatch_event('pointerup',{'button':0,'pointerId':4})
+        button.dispatch_event('click')
+        assert page.evaluate('JSON.stringify(LesnoySchedule.getState())')==before
+        page.keyboard.press('Escape')
+        assert tip.count()==0
 
 
 def menu_click(page,selector):
@@ -276,6 +294,7 @@ def landscape_function_checks(page):
     page.locator('#week-date').dispatch_event('change')
     assert page.evaluate('LesnoySchedule.getState().selectedWeek')=='2026-11-16'
     toolbar_layout_checks(page)
+    shortcut_help_checks(page)
     close_mobile_menu(page)
     day='#schedule-body [data-person="demo-a"][data-day="0"]'
     page.locator(day).click()
@@ -442,6 +461,7 @@ def verify_page(browser, base_url, mobile=False):
     assert page.locator("#schedule-panel").is_visible()
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
     assert not errors, f"Browser errors: {errors}"
+    shortcut_help_checks(page)
     weekly_palette_checks(page)
     transfer_and_hold_checks(page)
     page.locator("#export-png").click()

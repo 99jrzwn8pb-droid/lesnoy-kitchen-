@@ -1198,3 +1198,23 @@ test('tapping the selected weekly tool again clears it without painting or chang
  for(const id of ['day','midday','']){h.click('[data-brush="'+id+'"]');assert.equal(h.q('[data-brush="'+id+'"]').getAttribute('aria-pressed'),'true');h.click('[data-brush="'+id+'"]');assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);h.click(h.cell(person,0));assert.equal(h.shared.get(KEY),saved);}
  h.click('#revision-picker');h.click('[data-revision-period="утро"]');h.click('#revision-picker');assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);assert.equal(h.q('#editor-dialog').open,false);
 });
+
+
+test('holding calendar or copy shows an accessible explanation and suppresses the release click without changing data',async t=>{
+ for(const selector of ['#today','#copy-week']){
+  const h=harness(t),person=h.addEmployee();h.setDate('2026-11-09');h.click(h.cell(person,0));h.setDate('2026-11-16');
+  const before=h.shared.get(KEY),button=h.q(selector),confirmations=h.confirmations.length;
+  h.pointer('pointerdown',1,10,10,button);await new Promise(r=>setTimeout(r,650));
+  assert.ok(h.q('[role="tooltip"]').textContent.includes(selector==='#today'?'текущую':'предыдущей'));
+  assert.equal(button.getAttribute('aria-describedby'),h.q('[role="tooltip"]').id);
+  h.pointer('pointerup',1,10,10,button);button.click();
+  assert.equal(h.shared.get(KEY),before);assert.equal(h.confirmations.length,confirmations);
+  h.w.dispatchEvent(new h.w.Event('resize'));assert.equal(h.w.document.querySelector('[role="tooltip"]'),null);assert.equal(button.hasAttribute('aria-describedby'),false);
+ }
+});
+
+test('dragging or releasing shortcut before the hold threshold never shows a tooltip',async t=>{
+ const h=harness(t),button=h.q('#copy-week');h.pointer('pointerdown',1,10,10,button);h.pointer('pointermove',1,40,10,button);
+ await new Promise(r=>setTimeout(r,650));assert.equal(h.w.document.querySelector('[role="tooltip"]'),null);
+ h.pointer('pointerdown',1,10,10,button);h.pointer('pointerup',1,10,10,button);await new Promise(r=>setTimeout(r,650));assert.equal(h.w.document.querySelector('[role="tooltip"]'),null);
+});

@@ -603,6 +603,32 @@
     showWarning('Данные изменены в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения. При необходимости сохраните текущий график в JSON и загрузите данные из другой вкладки.',true); render();
   });
   window.addEventListener('hashchange',importRosterLink);
+  // Подсказка при удержании не запускает календарь или копирование.
+  function installShortcutHelp(buttonId, message) {
+    const button=$(buttonId);let timer,hideTimer,start,tip,blockedUntil=0,previousDescription;
+    const stopTimer=()=>{clearTimeout(timer);start=null;};
+    function hide(){clearTimeout(hideTimer);if(tip){tip.remove();tip=null;if(previousDescription===null)button.removeAttribute('aria-describedby');else button.setAttribute('aria-describedby',previousDescription);}}
+    function show(){
+      stopTimer();hide();previousDescription=button.getAttribute('aria-describedby');
+      tip=document.createElement('div');tip.id=buttonId+'-help';tip.className='hold-help';tip.setAttribute('role','tooltip');tip.textContent=message;document.body.append(tip);
+      button.setAttribute('aria-describedby',tip.id);const b=button.getBoundingClientRect(),r=tip.getBoundingClientRect();
+      const left=Math.max(12,Math.min(b.left+b.width/2-r.width/2,document.documentElement.clientWidth-r.width-12));
+      tip.style.left=left+'px';tip.style.top=Math.max(8,b.top-r.height-10)+'px';tip.style.setProperty('--arrow-left',Math.max(12,Math.min(r.width-12,b.left+b.width/2-left))+'px');blockedUntil=Date.now()+900;
+    }
+    button.addEventListener('pointerdown',event=>{stopTimer();hide();if(event.button!==0||event.isPrimary===false)return;start={x:event.clientX,y:event.clientY,id:event.pointerId};timer=setTimeout(show,600);});
+    window.addEventListener('pointermove',event=>{if(start&&event.pointerId===start.id&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>10)stopTimer();},{passive:true});
+    window.addEventListener('pointerup',()=>{stopTimer();if(tip){blockedUntil=Date.now()+900;hideTimer=setTimeout(hide,1800);}});
+    window.addEventListener('pointercancel',()=>{stopTimer();hide();});
+    button.addEventListener('pointerleave',stopTimer);
+    button.addEventListener('contextmenu',event=>{event.preventDefault();show();hideTimer=setTimeout(hide,2400);});
+    button.addEventListener('click',event=>{if(Date.now()<blockedUntil){event.preventDefault();event.stopImmediatePropagation();}else hide();},{capture:true});
+    document.addEventListener('click',event=>{if(!button.contains(event.target))hide();});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){const visible=!!tip;stopTimer();hide();if(visible){event.preventDefault();event.stopImmediatePropagation();}}});
+    window.addEventListener('resize',()=>{stopTimer();hide();});window.addEventListener('scroll',hide,true);
+    document.addEventListener('visibilitychange',()=>{stopTimer();hide();});
+  }
+  installShortcutHelp('today','Открыть текущую неделю.');
+  installShortcutHelp('copy-week','Скопировать смены предыдущей недели в открытую неделю.');
   window.LesnoySchedule = { getState: () => C.validateState(state), refresh: () => scheduleViewport?.refresh() };
   render();
   initScheduleViewport();

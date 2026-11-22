@@ -1,10 +1,10 @@
 /* Liquid Glass применяется только к меню и диалогам, не к таблицам. */
 :is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu){
-  background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(240,240,240,.76));
-  -webkit-backdrop-filter:blur(18px) saturate(150%);
-  backdrop-filter:blur(18px) saturate(150%);
+  background:radial-gradient(ellipse at 10% 0,rgba(255,255,255,.8),transparent 62%),linear-gradient(135deg,rgba(255,255,255,.84),rgba(240,240,240,.52));
+  -webkit-backdrop-filter:blur(26px) saturate(180%);
+  backdrop-filter:blur(26px) saturate(180%);
   border-color:rgba(137,137,137,.22);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(101,101,101,.06);
+  box-shadow:inset 0 1px 0 #fff,inset 1px 0 0 #ffffffa6,inset 0 -1px 0 #77777714,0 3px 12px #3333330a;
 }
 :is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom){border-radius:14px}
 .view-switch{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
@@ -37,14 +37,14 @@
 :is(.table-hint,.ts-view-controls) .zoom-controls output{color:#444444}
 :is(.topbar,.week-toolbar,.ts-controls) .eyebrow{color:#717171}
 :is(.ts-paint,.ts-view-controls,dialog) input[type="checkbox"]{accent-color:#5c5c5c}
-dialog{border-radius:26px;border-color:#ffffffd9;box-shadow:inset 0 1px 0 #ffffff,0 20px 70px #33333329;background:linear-gradient(145deg,#fffffff2,#f3f3f3e8)}
+dialog{border-radius:26px;border-color:#ffffffd9;box-shadow:inset 0 1px 0 #ffffff,0 20px 70px #33333329;background:linear-gradient(145deg,#ffffffdb,#f3f3f3b0)}
 dialog::backdrop{background:#2c2c2c38;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 dialog .field :is(input,select){border-radius:14px;background:#ffffffc9;border-color:#a8a8a880;box-shadow:inset 0 1px 2px #3a3a3a08}
 dialog .dialog-note{color:#666666}
 dialog .list-row{border-bottom-color:#9696962e}
 dialog .menu-buttons .button{border-radius:17px}
 dialog .button.square{border-radius:50%;background:#ffffffa8}
-#mobile-menu{border-radius:26px 0 0 26px;background:linear-gradient(145deg,#fffffff0,#eeeeeece);border-left:1px solid #ffffffbd;box-shadow:inset 1px 0 0 #ffffff, -12px 0 40px #33333324}
+#mobile-menu{border-radius:26px 0 0 26px;background:linear-gradient(145deg,#ffffffd9,#eeeeeead);border-left:1px solid #ffffffbd;box-shadow:inset 1px 0 0 #ffffff, -12px 0 40px #33333324}
 #mobile-menu :is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom){background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-color:#9e9e9e38}
 #mobile-menu-toggle{border-radius:50%;border-color:#ffffffd9;color:#404040;background:linear-gradient(155deg,#ffffffed,#f1f1f1ad);-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);box-shadow:inset 0 1px 0 #ffffff,0 4px 14px #33333329}
 #mobile-menu-shade{background:#3131311a}
