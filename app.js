@@ -461,7 +461,7 @@
           exportURL = URL.createObjectURL(result.blob);
           const img = body.querySelector('#png-preview'); img.src = exportURL; img.hidden = false;
           const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.hidden = false;
-          body.querySelector('#png-status').textContent = `Вся таблица · ${result.width} × ${result.height} px · с телефонами`;
+          body.querySelector('#png-status').textContent = `Вся таблица · ${result.width} × ${result.height} px`;
           const shareFile = new File([result.blob],result.filename,{type:'image/png'});
           const share = body.querySelector('#png-share');
           let canShare = false;
@@ -545,8 +545,8 @@
   document.addEventListener('visibilitychange',cancelShiftHold);
   $('shift-palette').onclick = (event) => {
     if(Date.now()<blockShiftClickUntil){event.preventDefault();event.stopPropagation();return;}
-    if (event.target.closest('#revision-picker')) { revisionPicker(shiftId => { brush=shiftId;editMode=false;render(); }); return; }
-    const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); }
+    if (event.target.closest('#revision-picker')) { if(/^ревизия/i.test(shiftById(brush)?.label || '')){brush=null;editMode=false;render();return;} revisionPicker(shiftId => { brush=shiftId;editMode=false;render(); }); return; }
+    const b = event.target.closest('[data-brush]'); if (b) { brush = brush === b.dataset.brush ? null : b.dataset.brush; editMode = false; render(); }
   };
   $('edit-mode').onclick = () => { editMode = !editMode; render(); };
   $('schedule-body').onclick = (event) => {

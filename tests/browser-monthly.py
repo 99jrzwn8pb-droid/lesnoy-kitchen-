@@ -61,7 +61,7 @@ def png_quality_checks(page, mobile, weekly=False):
     assert page.evaluate("""weekly=>{
       const dialog=document.querySelector(weekly?'#editor-dialog':'#ts-dialog'),r=e=>e.getBoundingClientRect();
       const img=dialog.querySelector('.png-preview'),status=dialog.querySelector('.png-preview+.dialog-note'),buttons=dialog.querySelector('.png-actions'),share=buttons.querySelector('button'),save=buttons.querySelector('a');
-      return !dialog.innerText.includes('Для печати:') && r(img).bottom<=r(status).top && buttons.firstElementChild===share && share.classList.contains('primary') && !save.classList.contains('primary') && save.classList.contains('small') && share.querySelector('svg') && save.querySelector('svg');
+      return !dialog.innerText.includes('Для печати:') && r(img).bottom<=r(status).top && buttons.firstElementChild===share && share.classList.contains('primary') && !save.classList.contains('primary') && save.classList.contains('small') && share.querySelector('svg') && save.querySelector('svg') && getComputedStyle(share).backgroundImage.includes('61, 61, 61') && !status.innerText.includes('с телефонами');
     }""",weekly), 'PNG dialog shows size below preview, share first/primary, compact download and both icons'
 
 
@@ -140,6 +140,11 @@ def frozen_checks(page):
 
 
 def weekly_palette_checks(page):
+    tool=page.locator('#shift-palette [data-brush="midday"]')
+    tool.click()
+    assert tool.get_attribute('aria-pressed')=='true'
+    tool.click()
+    assert page.locator('#shift-palette [aria-pressed="true"]').count()==0
     assert page.locator('#shift-palette [data-brush="work"]').count() == 0
     page.locator('#shift-palette [data-brush="midday"]').click()
     box = page.locator('#table-scroll').bounding_box()
@@ -162,7 +167,9 @@ def weekly_palette_checks(page):
 
 def transfer_and_hold_checks(page):
     day='#schedule-body [data-person="demo-a"][data-day="0"]'
-    page.locator('#shift-palette [data-brush="day"]').click()
+
+    if page.locator('#shift-palette [data-brush="day"]').get_attribute('aria-pressed')!='true':
+        page.locator('#shift-palette [data-brush="day"]').click()
     page.locator(day).click()
     page.locator('#sync-timesheet').click()
     assert page.evaluate("LesnoyTimesheet.getBook().days['demo-a']['2026-11-16'].value") == 1
@@ -178,7 +185,9 @@ def transfer_and_hold_checks(page):
     assert page.evaluate("LesnoyTimesheet.getBook().days['demo-a']['2026-11-16'].value") == 1.5
     page.locator('#sync-timesheet').click()
     assert page.evaluate("!LesnoyTimesheet.getBook().days['demo-a']['2026-11-16']")
-    page.locator('#shift-palette [data-brush="day"]').click()
+
+    if page.locator('#shift-palette [data-brush="day"]').get_attribute('aria-pressed')!='true':
+        page.locator('#shift-palette [data-brush="day"]').click()
     page.locator(day).click()
     page.locator('#sync-timesheet').click()
     weekly=page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')
@@ -206,7 +215,8 @@ def transfer_and_hold_checks(page):
 def toolbar_layout_checks(page):
     assert page.evaluate("""() => {
       const r=k=>document.querySelector(k).getBoundingClientRect(),a=r('#sync-timesheet'),b=r('#cancel-timesheet-transfer'),nav=r('.week-navigation'),bar=r('.week-toolbar'),label=r('.week-label');
-      return Math.abs(a.left-b.left)<1 && Math.abs(a.right-b.right)<1 && a.bottom<=b.top && nav.right<a.left && label.width>=110 && a.right<=bar.right && b.bottom<=bar.bottom;
+      const prev=r('#prev-week'),next=r('#next-week');
+      return Math.abs((label.left-prev.right)-(next.left-label.right))<1 && Math.abs(prev.width-next.width)<1 && Math.abs(prev.top-next.top)<1 && Math.abs(a.left-b.left)<1 && Math.abs(a.right-b.right)<1 && a.bottom<=b.top && nav.right<a.left && label.width>=110 && a.right<=bar.right && b.bottom<=bar.bottom;
     }"""), 'Transfer buttons stack on the right; week picker and arrows have room'
 
 
@@ -377,7 +387,7 @@ def verify_page(browser, base_url, mobile=False):
       }));
       const before=snapshot();link.disabled=true;const base=snapshot();link.disabled=false;
       const bg=getComputedStyle(document.querySelector('#ts-open')).backgroundImage;
-      return before===base && bg.includes('102, 102, 102') && bg.includes('61, 61, 61') && getComputedStyle(document.querySelector('#export-png')).backgroundImage.includes('0.38');
+      return before===base && bg.includes('102, 102, 102') && bg.includes('61, 61, 61') && getComputedStyle(document.querySelector('#export-png')).backgroundImage.includes('61, 61, 61');
     }"""), "Grey glass menu preserves all table cell styles"
     weekly_before = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     page.locator("#ts-next").click()

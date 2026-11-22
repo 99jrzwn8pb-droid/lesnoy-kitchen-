@@ -115,9 +115,9 @@ test('weekly import creates drafts once and preserves a confirmed correction', t
 
 test('month-specific profiles survive navigation and reload without altering earlier payroll', t=>{
   const h=harness(t);
-  h.q('#ts-brush-confirmed').checked=true;h.click('[data-ts-brush="1"]');h.click(h.cell('test-shift','2026-11-03'));
+  h.q('#ts-brush-confirmed').checked=true;h.click(h.cell('test-shift','2026-11-03'));
   h.month('2026-12');h.click('[data-rate="test-shift"]');h.submit('#ts-person-form',{name:'Тестовый повар',role:'Повар',type:'shift',rate:'1500'});
-  h.q('#ts-brush-confirmed').checked=true;h.click('[data-ts-brush="1"]');h.click(h.cell('test-shift','2026-12-03'));
+  h.q('#ts-brush-confirmed').checked=true;h.click(h.cell('test-shift','2026-12-03'));
   assert.equal(Monthly.totals(h.read(),'test-shift','2026-12').amount,1500);
   assert.equal(Monthly.totals(h.read(),'test-shift','2026-11').amount,1200);
   const reloaded=harness(t,h.shared);reloaded.month('2026-12');
@@ -242,4 +242,11 @@ test('all-week cancellation survives reload and supports cancel confirmation, un
  reload.click('#ts-back');reload.click('#next-week');assert.equal(reload.q('#cancel-timesheet-transfer').disabled,true);
  reload.click('#prev-week');assert.equal(reload.q('#cancel-timesheet-transfer').disabled,false);
  reload.click('#cancel-timesheet-transfer');reload.click('#sync-timesheet');assert.equal(reload.read().days['test-shift']['2026-11-16'].value,1);
+});
+
+
+test('tapping the selected monthly tool again leaves empty cells and saved payroll unchanged',t=>{
+ const h=harness(t),before=h.shared.get(MONTHLY);h.click('[data-ts-brush="1"]');assert.equal(h.w.document.querySelector('#ts-palette [aria-pressed="true"]'),null);
+ h.click(h.cell('test-shift','2026-11-05'));assert.equal(h.shared.get(MONTHLY),before);
+ h.click('[data-ts-brush="0.5"]');h.click('[data-ts-brush="0.5"]');assert.equal(h.w.document.querySelector('#ts-palette [aria-pressed="true"]'),null);assert.equal(h.shared.get(MONTHLY),before);
 });

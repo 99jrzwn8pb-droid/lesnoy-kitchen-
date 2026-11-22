@@ -111,3 +111,10 @@ html.sheet-app,html.sheet-app body{width:100%;height:100%;overflow:hidden;oversc
 .png-actions .button.small{min-height:32px;padding:5px 9px;font-size:11px}
 .png-actions .button.small svg{width:15px;height:15px}
 .png-preview+.dialog-note{font-size:11px;margin:8px 0 12px}
+
+/* Стрелки обрамляют даты с равными отступами, без растягивания подписи. */
+.sheet-app .week-navigation .week-picker{flex:0 1 auto;justify-content:flex-start;gap:6px}
+.sheet-app .week-navigation .week-label{flex:0 1 auto;max-width:260px}
+.sheet-app .week-navigation .week-picker>.square{flex-shrink:0}
+@media(max-width:650px){.sheet-app .week-navigation .week-label{max-width:clamp(110px,38vw,180px)}}
+#mobile-menu .week-navigation .week-label{max-width:160px}

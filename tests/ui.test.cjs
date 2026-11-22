@@ -494,7 +494,7 @@ test('cancel copy/import preserves current data, and non-Monday selection normal
   const h = harness(t);
   const person = h.addEmployee();
   h.setDate('2026-11-16'); h.click(h.cell(person, 0));
-  h.click('#next-week'); h.click('[data-brush="day"]'); h.click(h.cell(person, 0));
+  h.click('#next-week'); h.click(h.cell(person, 0));
   const before = h.shared.get(KEY);
   h.setConfirmAnswer(false); h.click('#copy-week');
   assert.equal(h.shared.get(KEY), before);
@@ -561,7 +561,7 @@ test('PNG button automatically exports high quality with phones and no option sw
   assert.equal(h.q('#png-save').hidden, false);
   assert.equal(h.q('#png-preview').hidden, false);
   assert.match(h.q('#png-save').download, /^lesnoy-grafik-\d{4}-\d{2}-\d{2}-a4\.png$/);
-  assert.match(h.q('#png-status').textContent, /Вся таблица.*с телефонами/);
+  assert.match(h.q('#png-status').textContent, /Вся таблица.*px$/);
   assert.equal(encoded.length, 1);
   assert.deepEqual([...encoded[0].subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   const image = await native.loadImage(encoded[0]);
@@ -727,7 +727,7 @@ test('Excel table keeps merged headers and department cells while displaying sta
   assert.deepEqual(halves(0),['10:00','22:00']);
   assert.equal(h.q(h.cell(person,0)).closest('td').colSpan,2);
   assert.match(h.q(h.cell(person,0)).getAttribute('aria-label'),/10–22/);
-  h.click('[data-brush="day"]');h.click(h.cell(person,1));
+  h.click(h.cell(person,1));
   assert.deepEqual(halves(1),['10:00','22:00']);
   assert.equal(h.q(h.cell(person,2)).textContent.trim(),'','Empty Excel cells should remain blank');
   h.click('#edit-mode');h.click(h.cell(person,4));
@@ -1052,7 +1052,7 @@ const departmentCell = (department,day) => `[data-department-cell="${department}
 test('department calendar cells persist manual intervals and deletion without changing employee shifts', t => {
   const h=harness(t);const person=h.addEmployee();h.setDate('2026-11-16');
   h.click(h.cell(person,0));const before=h.read();
-  h.click('[data-brush="day"]');h.click(departmentCell('hot',1));
+  h.click(departmentCell('hot',1));
   assert.equal(h.read().departmentWeeks['2026-11-16'].hot[1],'day');
   assert.deepEqual([...h.q(departmentCell('hot',1)).querySelectorAll('.shift-time')].map(x=>x.textContent),['10:00','22:00']);
   assert.equal(h.q(departmentCell('hot',1)).hasAttribute('data-person'),false);
@@ -1160,7 +1160,7 @@ test('one revision picker follows erase, offers morning/night, and persists the 
 });
 
 test('holding a used time button hides it only after confirmation and survives reload with every weekly cell intact',async t=>{
- const h=harness(t),person=h.addEmployee();h.click('[data-brush="day"]');h.click(h.cell(person,0));
+ const h=harness(t),person=h.addEmployee();h.click(h.cell(person,0));
  const weeks=JSON.stringify(h.read().weeks),button=h.q('[data-brush="day"]');
  button.dispatchEvent(new h.w.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:10,clientY:10}));
  await new Promise(r=>setTimeout(r,650));assert.equal(h.q('#editor-dialog').open,true);
@@ -1190,4 +1190,11 @@ test('initial load and reload have no selected shift until the user chooses one'
  assert.equal(reload.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);
  const saved=shared.get(KEY);reload.click(reload.cell(person,1));assert.equal(shared.get(KEY),saved);
  reload.click(reload.cell(person,0));assert.equal(reload.q('#editor-dialog').open,true,'Existing cells still open for editing');
+});
+
+
+test('tapping the selected weekly tool again clears it without painting or changing saved data',t=>{
+ const h=harness(t,new Map(),'https://lesnoy.example/kitchen/',false),person=h.addEmployee(),saved=h.shared.get(KEY);
+ for(const id of ['day','midday','']){h.click('[data-brush="'+id+'"]');assert.equal(h.q('[data-brush="'+id+'"]').getAttribute('aria-pressed'),'true');h.click('[data-brush="'+id+'"]');assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);h.click(h.cell(person,0));assert.equal(h.shared.get(KEY),saved);}
+ h.click('#revision-picker');h.click('[data-revision-period="утро"]');h.click('#revision-picker');assert.equal(h.w.document.querySelector('#shift-palette [aria-pressed="true"]'),null);assert.equal(h.q('#editor-dialog').open,false);
 });

@@ -149,7 +149,7 @@ function paste(event){
 }
 $('ts-open').onclick=open;$('ts-back').onclick=close;
 $('ts-month').onchange=e=>setMonth(e.target.value);$('ts-prev').onclick=()=>{try{setMonth(T.addMonths(month,-1));}catch(e){toast(e.message);}};$('ts-next').onclick=()=>{try{setMonth(T.addMonths(month,1));}catch(e){toast(e.message);}};
-$('ts-palette').onclick=e=>{const b=e.target.closest('[data-ts-brush]');if(b){brush=b.dataset.tsBrush;render();}};
+$('ts-palette').onclick=e=>{const b=e.target.closest('[data-ts-brush]');if(b){brush=brush===b.dataset.tsBrush?null:b.dataset.tsBrush;render();}};
 document.addEventListener('lesnoy:schedulechange',updateTransferControls);
 $('cancel-timesheet-transfer').onclick=cancelOpenWeekTransfer;$('ts-cancel-week').onclick=cancelOpenWeekTransfer;
 $('ts-undo').onclick=undo;$('ts-addemployee').onclick=()=>editPerson();$('ts-import-week').onclick=syncOpenWeek;$('sync-timesheet').onclick=syncOpenWeek;$('ts-confirm').onclick=confirmMonth;
