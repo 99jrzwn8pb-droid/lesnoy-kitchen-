@@ -446,20 +446,21 @@
     modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">Страница закреплена. Сжимайте два пальца для уменьшения графика, разводите для увеличения. Одним пальцем перемещайте лист. Имена, даты и смены масштабируются вместе. Кнопка «Весь график» возвращает общий вид. На Mac также работают трекпад и кнопки «−»/«+». Нажмите телефон, чтобы позвонить.</p>`);
   }
   function pngDialog() {
-    modal('График для команды',`<label class="check-label"><input id="png-phones" type="checkbox" checked>Показывать телефоны на картинке</label><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
+    modal('График для команды',`<label class="check-label"><input id="png-phones" type="checkbox" checked>Показывать телефоны на картинке</label><label class="check-label"><input id="png-print" type="checkbox">Высокое качество для печати А4</label><p class="dialog-note">Для печати: А4 → альбомная ориентация → вписать в страницу. Используйте скачанный файл PNG.</p><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><div class="png-actions"><a id="png-save" class="button primary" hidden>Скачать PNG</a><button id="png-share" class="button" hidden>Поделиться</button></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
       const checkbox = body.querySelector('#png-phones');
+      const quality = body.querySelector('#png-print'); quality.checked = typeof window.matchMedia === 'function' && !window.matchMedia('(pointer: coarse)').matches;
       const generate = async () => {
         const seq = ++exportSequence;
         body.querySelector('#png-save').hidden = true; body.querySelector('#png-share').hidden = true;
         body.querySelector('#png-preview').hidden = true;
         body.querySelector('#png-status').textContent = 'Готовим всю таблицу…';
         try {
-          const result = await window.LesnoyPNG.render(clone(state),state.selectedWeek,{includePhones:checkbox.checked});
+          const result = await window.LesnoyPNG.render(clone(state),state.selectedWeek,{includePhones:checkbox.checked,printQuality:quality.checked});
           if (seq !== exportSequence || !dialog.open) return;
           if (exportURL) URL.revokeObjectURL(exportURL);
           exportURL = URL.createObjectURL(result.blob);
           const img = body.querySelector('#png-preview'); img.src = exportURL; img.hidden = false;
-          const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.hidden = false;
+          const a = body.querySelector('#png-save'); a.href = exportURL; a.download = result.filename; a.textContent = quality.checked ? 'Скачать PNG для А4' : 'Скачать PNG'; a.hidden = false;
           body.querySelector('#png-status').textContent = `Вся таблица · ${result.width} × ${result.height} px · ${checkbox.checked?'с телефонами':'без телефонов'}`;
           const shareFile = new File([result.blob],result.filename,{type:'image/png'});
           const share = body.querySelector('#png-share');
@@ -472,7 +473,7 @@
           };
         } catch (error) { if (seq === exportSequence) body.querySelector('#png-status').textContent = 'Не удалось создать PNG. ' + error.message; }
       };
-      checkbox.onchange = generate; generate();
+      checkbox.onchange = generate; quality.onchange = generate; generate();
     });
   }
   function copyPreviousWeek() {

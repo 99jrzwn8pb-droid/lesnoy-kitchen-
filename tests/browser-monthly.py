@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import struct
+import zlib
 from pathlib import Path
 
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "/tmp/lesnoy-browsers")
@@ -30,6 +31,36 @@ def download_file(page, selector, destination):
     assert download.failure() is None, "File download completed"
     download.save_as(str(destination))
     return destination.read_bytes()
+
+
+def print_density(png):
+    chunks = []
+    at = 8
+    while at + 12 <= len(png):
+        length = struct.unpack(">I", png[at:at+4])[0]
+        kind = png[at+4:at+8]
+        data = png[at+8:at+8+length]
+        assert zlib.crc32(kind + data) == struct.unpack(">I", png[at+8+length:at+12+length])[0]
+        if kind == b"pHYs":
+            chunks.append(struct.unpack(">IIB", data))
+        at += length + 12
+    assert chunks == [(15748, 15748, 1)], "PNG includes valid 400 dpi density"
+
+
+def png_quality_checks(page, mobile, weekly=False):
+    quality = "#png-print" if weekly else "#ts-png-print"
+    save = "#png-save" if weekly else "#ts-png-download"
+    assert page.locator(quality).is_checked() == (not mobile)
+    widths = {}
+    for enabled in [False, True, False]:
+        page.locator(quality).set_checked(enabled)
+        page.locator(save).wait_for(state="visible")
+        data = download_file(page, save, ARTIFACTS / ("weekly" if weekly else "monthly") / ("print.png" if enabled else "normal.png"))
+        widths[enabled] = struct.unpack(">I", data[16:20])[0]
+        if enabled:
+            print_density(data)
+            assert "А4" in page.locator(save).inner_text()
+    assert widths[True] > widths[False], "Print mode draws additional pixels"
 
 
 def totals(page, person="demo-a"):
@@ -218,6 +249,7 @@ def verify_page(browser, base_url, mobile=False):
     assert png.startswith(b"\x89PNG\r\n\x1a\n"), "PNG download is a PNG image"
     width, height = struct.unpack(">II", png[16:24])
     assert width > 1200 and height > 150, "Full monthly PNG contains all 30 days"
+    png_quality_checks(page, mobile)
     page.locator("#ts-dialog-close").click()
     page.locator('#ts-table [data-ts-person="demo-a"][data-date="2026-11-01"]').click()
     page.locator('#ts-cell-form [name=value]').fill("1,5")
@@ -243,6 +275,9 @@ def verify_page(browser, base_url, mobile=False):
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
     assert not errors, f"Browser errors: {errors}"
     weekly_palette_checks(page)
+    page.locator("#export-png").click()
+    png_quality_checks(page, mobile, weekly=True)
+    page.locator("#close-dialog").click()
     if mobile:
         landscape_checks(page)
     assert not errors, f"Browser errors after rotation: {errors}"

@@ -91,7 +91,7 @@
     return [text, text];
   }
 
-  async function render(state, weekKey, { includePhones = true } = {}) {
+  async function render(state, weekKey, { includePhones = true, printQuality = false } = {}) {
     if (!root.document) throw new Error('Экспорт PNG доступен в браузере.');
     const canvas = root.document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -149,7 +149,7 @@
     }
     const height = Math.ceil(y + EDGE);
     // Ограничиваем площадь и длину Canvas для мобильных браузеров.
-    const scale = Math.min(2, Math.sqrt(15000000 / (WIDTH * height)), 16000 / height);
+    const scale = Math.min(printQuality ? 4 : 2, Math.sqrt(15000000 / (WIDTH * height)), 16000 / height);
     canvas.width = Math.floor(WIDTH * scale);
     canvas.height = Math.floor(height * scale);
     ctx.scale(canvas.width / WIDTH, canvas.height / height);
@@ -217,14 +217,41 @@
     ctx.lineWidth = 1.5;
     ctx.strokeRect(EDGE, EDGE, INNER, height - EDGE * 2);
 
-    const blob = await new Promise((resolve, reject) => {
+    let blob = await new Promise((resolve, reject) => {
       canvas.toBlob(result => result ? resolve(result) : reject(new Error('Не удалось создать PNG. Попробуйте закрыть лишние вкладки и повторить.')), 'image/png');
     });
-    const result = { blob, filename: `lesnoy-grafik-${weekKey}.png`, width: canvas.width, height: canvas.height };
+    if (printQuality) blob = await withDpi(blob,400);
+    const result = { blob, filename: `lesnoy-grafik-${weekKey}${printQuality ? "-a4" : ""}.png`, width: canvas.width, height: canvas.height };
     canvas.width = 1; canvas.height = 1;
     return result;
   }
 
-  root.LesnoyPNG = { render };
-  if (typeof module !== 'undefined' && module.exports) module.exports = { render };
+  // pHYs задаёт физическое разрешение файла, не пересжимая пиксели.
+  async function withDpi(blob, dpi) {
+    if (!Number.isInteger(dpi) || dpi < 72 || dpi > 1200) throw new Error('Неверное разрешение PNG.');
+    const buffer = blob.arrayBuffer ? await blob.arrayBuffer() : await new Promise((resolve,reject) => {
+      const reader = new root.FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Не удалось подготовить PNG для печати.')); reader.readAsArrayBuffer(blob);
+    });
+    const bytes = new Uint8Array(buffer), view = new DataView(buffer);
+    if (bytes.length < 33 || view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) throw new Error('Повреждён PNG.');
+    const physical = new Uint8Array(21), pv = new DataView(physical.buffer);
+    pv.setUint32(0,9); physical.set([112,72,89,115],4);
+    const ppm = Math.round(dpi / 0.0254); pv.setUint32(8,ppm); pv.setUint32(12,ppm); physical[16] = 1;
+    let crc = 0xffffffff;
+    for (let i=4;i<17;i++) { crc ^= physical[i]; for (let bit=0;bit<8;bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0); }
+    pv.setUint32(17,(crc ^ 0xffffffff) >>> 0);
+    const chunks = [bytes.subarray(0,8)]; let inserted = false;
+    for (let at=8;at+12<=bytes.length;) {
+      const size=view.getUint32(at),end=at+size+12;
+      if(end>bytes.length)throw new Error('Повреждён PNG.');
+      const type=view.getUint32(at+4);
+      if(type!==0x70485973)chunks.push(bytes.subarray(at,end));
+      if(type===0x49484452){chunks.push(physical);inserted=true;}
+      at=end;
+    }
+    if(!inserted)throw new Error('Повреждён PNG.');
+    return new Blob(chunks,{type:'image/png'});
+  }
+  root.LesnoyPNG = { render, withDpi };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { render, withDpi };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,9 +1,9 @@
 /* Excel and full-table PNG for the independent monthly timesheet. No network calls. */
 (function (root, factory) {
   'use strict';
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./timesheet-core.js'), require('./vendor/exceljs-4.4.0.min.js'), null);
-  else { const host = root.window || root; host.LesnoyTimesheetIO = factory(host.LesnoyTimesheetCore, host.ExcelJS, host.document || root.document); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (C, ExcelJS, document) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./timesheet-core.js'), require('./vendor/exceljs-4.4.0.min.js'), null, require('./png.js'));
+  else { const host = root.window || root; host.LesnoyTimesheetIO = factory(host.LesnoyTimesheetCore, host.ExcelJS, host.document || root.document, host.LesnoyPNG); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (C, ExcelJS, document, PrintPNG) {
   'use strict';
   const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const WEEKDAYS = ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
@@ -173,7 +173,7 @@
     if(typeof require==='function'){let native;try{native=require('@napi-rs/canvas');}catch(_){native=require('/opt/codex/runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');}return native.createCanvas(1,1);}
     fail('Браузер не поддерживает Canvas.');
   }
-  async function exportPNG(book,schedule,month) {
+  async function exportPNG(book,schedule,month,{printQuality=false}={}) {
     const d=data(book,schedule,month);if(document?.fonts?.ready)await document.fonts.ready;
     const canvas=canvasFactory(),ctx=canvas.getContext('2d'),font='15px "Times New Roman", "Liberation Serif", serif',line=18;
     ctx.font=font;
@@ -185,12 +185,13 @@
     rows.push({values:['','',...Array.from({length:d.l.days},(_,i)=>i+1),'','',''],header:true});
     rows.push({values:['','',...Array.from({length:d.l.days},(_,i)=>dayName(month,i+1)),'','ФОТ',C.monthlyTotal(d.book,d.list,month).toLocaleString('ru-RU')],header:true});
     rows.forEach(row=>{row.lines=row.values.map((value,i)=>wrap(value,widths[i]-10));row.height=Math.max(28,...row.lines.map(lines=>lines.length*line+12));});
-    const footer=28,logicalHeight=rows.reduce((sum,row)=>sum+row.height,0)+footer,scale=Math.min(2,16000/d.l.width,16000/logicalHeight,Math.sqrt(15000000/(d.l.width*logicalHeight)));
+    const footer=28,logicalHeight=rows.reduce((sum,row)=>sum+row.height,0)+footer,scale=Math.min(printQuality?4:2,16000/d.l.width,16000/logicalHeight,Math.sqrt(15000000/(d.l.width*logicalHeight)));
     canvas.width=Math.floor(d.l.width*scale);canvas.height=Math.floor(logicalHeight*scale);ctx.scale(scale,scale);ctx.font=font;ctx.fillStyle='#ffffff';ctx.fillRect(0,0,d.l.width,logicalHeight);ctx.strokeStyle='#000000';ctx.lineWidth=.7;ctx.textBaseline='middle';
     let y=0;for(const row of rows){let x=0;row.lines.forEach((lines,i)=>{ctx.fillStyle=row.header?'#d9d9d9':'#ffffff';ctx.fillRect(x,y,widths[i],row.height);ctx.strokeRect(x,y,widths[i],row.height);ctx.fillStyle='#000000';ctx.textAlign=i<2?'left':'center';lines.forEach((text,j)=>ctx.fillText(text,i<2?x+5:x+widths[i]/2,y+row.height/2+(j-(lines.length-1)/2)*line));x+=widths[i];});y+=row.height;}
     ctx.fillStyle='#000000';ctx.textAlign='left';ctx.fillText('* — черновик, в оплату не включён. Месяц: '+month,5,y+footer/2);
     let blob;if(canvas.toBlob)blob=await new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(new Error('Не удалось создать PNG.')),'image/png'));else blob=new Blob([canvas.toBuffer('image/png')],{type:'image/png'});
-    return {blob,filename:'Лесной-табель-'+month+'.png',width:canvas.width,height:canvas.height};
+    if(printQuality)blob=await PrintPNG.withDpi(blob,400);
+    return {blob,filename:'Лесной-табель-'+month+(printQuality?'-a4':'')+'.png',width:canvas.width,height:canvas.height};
   }
   return {layout,exportExcel,exportPNG,importExcel};
 });
