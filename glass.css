@@ -1,0 +1,58 @@
+/* Liquid Glass применяется только к меню и диалогам, не к таблицам. */
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu){
+  background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(232,243,239,.76));
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  backdrop-filter:blur(18px) saturate(150%);
+  border-color:rgba(110,145,132,.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(72,111,94,.06);
+}
+:is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom){border-radius:14px}
+.view-switch{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip){
+  border-radius:999px;
+  border-color:rgba(99,133,118,.25);
+  background:linear-gradient(165deg,rgba(255,255,255,.94),rgba(255,255,255,.52));
+  color:#233e34;
+  box-shadow:inset 0 1px 0 #ffffffec,0 2px 5px #163f2910;
+  transition:background-color .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip):hover{background:linear-gradient(165deg,#fff,#e4f2eccc);border-color:#729b8799}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button.primary,[aria-pressed="true"]){
+  color:#fff;
+  background:linear-gradient(155deg,rgba(57,116,91,.96),rgba(25,72,55,.97));
+  border-color:rgba(31,82,60,.65);
+  box-shadow:inset 0 1px 0 #ffffff4a,0 3px 8px #173b2720;
+  outline:none;
+}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip):active{box-shadow:inset 0 1px 3px #1d493320}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip):focus-visible{outline:2px solid #2d7555;outline-offset:2px}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) .button.danger{color:#a32925}
+:is(.paint-toolbar,.ts-paint,dialog) .shift-chip i{border-radius:50%;border-color:#426a5640}
+:is(.week-toolbar,.ts-controls) .ts-month-label{background:linear-gradient(155deg,#ffffffdf,#ffffff80);border-radius:999px;border-color:#84a58f66;box-shadow:inset 0 1px 0 #fff}
+:is(.ts-controls,.week-toolbar) input:not([type="checkbox"]){border-radius:999px}
+:is(.table-hint,.ts-view-controls) .zoom-controls output{color:#274e3b}
+:is(.topbar,.week-toolbar,.ts-controls) .eyebrow{color:#5d786a}
+:is(.ts-paint,.ts-view-controls,dialog) input[type="checkbox"]{accent-color:#2c6c4d}
+dialog{border-radius:26px;border-color:#ffffffd9;box-shadow:inset 0 1px 0 #fff,0 20px 70px #173d2929;background:linear-gradient(145deg,#fffffff2,#edf5f0e8)}
+dialog::backdrop{background:#15332738;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+dialog .field :is(input,select){border-radius:14px;background:#ffffffc9;border-color:#91b09d80;box-shadow:inset 0 1px 2px #19452a08}
+dialog .dialog-note{color:#536c5e}
+dialog .list-row{border-bottom-color:#839d872e}
+dialog .menu-buttons .button{border-radius:17px}
+dialog .button.square{border-radius:50%;background:#ffffffa8}
+#mobile-menu{border-radius:26px 0 0 26px;background:linear-gradient(145deg,#fffffff0,#e4f2e6ce);border-left:1px solid #ffffffbd;box-shadow:inset 1px 0 0 #fff, -12px 0 40px #143d2524}
+#mobile-menu :is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom){background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-color:#8aa68b38}
+#mobile-menu-toggle{border-radius:50%;border-color:#ffffffd9;color:#214a35;background:linear-gradient(155deg,#ffffffed,#e8f5e1ad);-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);box-shadow:inset 0 1px 0 #fff,0 4px 14px #143d2529}
+#mobile-menu-shade{background:#163a251a}
+.toast{border-radius:19px;background:#193f30e6;color:#fff;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 #ffffff40,0 6px 22px #173c2429}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu,#mobile-menu-toggle){background:#f4f8f4}
+}
+@media(prefers-reduced-transparency:reduce){
+  :is(.topbar,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu,#mobile-menu-toggle,.toast){-webkit-backdrop-filter:none;backdrop-filter:none;background:#f4f8f4}
+  .toast{background:#193f30}
+  dialog::backdrop{-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+@media(prefers-reduced-motion:reduce){
+  :is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom,dialog,#mobile-menu) :is(.button,.shift-chip){transition:none}
+}
