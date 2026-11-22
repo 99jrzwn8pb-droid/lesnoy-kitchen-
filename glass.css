@@ -62,3 +62,5 @@ dialog .button.square{border-radius:50%;background:#ffffffa8}
 .save-status:not(.error)::before{background:#6b6b6b}
 :is(.topbar,.week-toolbar,.ts-controls,dialog) :is(input,select,a):focus-visible{outline-color:#555}
 .date-control:focus-within{outline-color:#555}
+
+#shift-palette [data-brush]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}

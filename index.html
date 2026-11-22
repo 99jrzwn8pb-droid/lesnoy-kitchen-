@@ -8,16 +8,16 @@
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css?v=20261121-palette">
-  <link rel="stylesheet" href="glass.css?v=2">
-  <script src="core.js?v=11" defer></script>
+  <link rel="stylesheet" href="glass.css?v=3">
+  <script src="core.js?v=12" defer></script>
   <script src="png.js?v=15" defer></script>
   <script src="viewport.js?v=7" defer></script>
-  <script src="app.js?v=15" defer></script>
+  <script src="app.js?v=16" defer></script>
   <script src="vendor/exceljs-4.4.0.min.js" defer></script>
-  <script src="timesheet-core.js?v=3" defer></script>
+  <script src="timesheet-core.js?v=4" defer></script>
   <script src="timesheet-io.js?v=4" defer></script>
   <script src="timesheet-viewport.js?v=2" defer></script>
-  <script src="timesheet.js?v=6" defer></script>
+  <script src="timesheet.js?v=7" defer></script>
   <script src="mobile.js?v=1" defer></script>
 </head>
 <body>
@@ -46,7 +46,8 @@
           <button id="next-week" class="button square" aria-label="Следующая неделя">›</button>
           <button id="today" class="button subtle small" aria-label="Текущая неделя" title="Текущая неделя"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3ZM6 2v5m8-5v5M3 9h14"/></svg><span>Текущая</span></button>
         </div>
-        <button id="sync-timesheet" class="button" title="Открытая неделя: только пустые дни, черновиками">В табель</button>
+        <button id="sync-timesheet" class="button" title="Перенести открытую неделю и убрать ранее перенесённые смены, удалённые из графика">В табель</button>
+        <button id="cancel-timesheet-transfer" class="button small" title="Убрать из табеля все переносы открытой недели" disabled>Отменить перенос</button>
         <button id="copy-week" class="button" aria-label="Скопировать предыдущую неделю" title="Скопировать предыдущую неделю"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6V3h10v11h-3M3 6h11v11H3Z"/></svg><span>Из прошлой недели</span></button>
       </div>
 
@@ -70,7 +71,7 @@
     <section id="ts-panel" class="schedule-card" hidden aria-label="Месячный табель">
       <div class="ts-controls">
         <div class="ts-month-picker"><button id="ts-prev" class="button square" aria-label="Предыдущий месяц">‹</button><label class="ts-month-label"><span id="ts-month-label"></span><input id="ts-month" type="month" min="1900-01" max="2199-12" lang="ru" aria-label="Месяц табеля"></label><button id="ts-next" class="button square" aria-label="Следующий месяц">›</button></div>
-        <div class="ts-actions"><button id="ts-import-week" class="button small">Перенести открытую неделю</button><button id="ts-confirm" class="button small">Подтвердить месяц</button><button id="ts-restore" class="button small primary">Импорт Excel / JSON</button><button id="ts-export" class="button small">Excel</button><button id="ts-png" class="button small">PNG</button><button id="ts-backup" class="button small" title="Полная копия графика и табеля">JSON</button></div>
+        <div class="ts-actions"><button id="ts-import-week" class="button small">Перенести открытую неделю</button><button id="ts-cancel-week" class="button small" disabled>Отменить перенос недели</button><button id="ts-confirm" class="button small">Подтвердить месяц</button><button id="ts-restore" class="button small primary">Импорт Excel / JSON</button><button id="ts-export" class="button small">Excel</button><button id="ts-png" class="button small">PNG</button><button id="ts-backup" class="button small" title="Полная копия графика и табеля">JSON</button></div>
       </div>
       <div class="ts-paint"><span>Смены:</span><div id="ts-palette" class="palette" role="group" aria-label="Количество смен для заполнения"></div><label class="ts-check"><input id="ts-brush-confirmed" type="checkbox" checked>Факт</label><button id="ts-undo" class="button subtle small" disabled>↶ Отменить</button><button id="ts-addemployee" class="button subtle small">＋ Сотрудник</button></div>
       <div class="ts-view-controls"><label class="ts-check"><input id="ts-freeze" type="checkbox" checked>Закрепить</label><div class="zoom-controls"><button id="ts-zoom-out" class="button small" aria-label="Уменьшить табель">−</button><output id="ts-zoom-level" aria-live="polite">100%</output><button id="ts-zoom-in" class="button small" aria-label="Увеличить табель">+</button><button id="ts-zoom-fit" class="button small">Весь табель</button></div></div>

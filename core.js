@@ -130,7 +130,8 @@
     const shifts = boundedList(input.shifts, presetVersion === 0 ? 30 : 33, 'Смены').map(item => {
       record(item, 'Смена');
       if (typeof item.color !== 'string' || !/^#[a-fA-F0-9]{6}$/.test(item.color)) fail('У смены неверный цвет.');
-      return { id: id(item.id, 'Смена'), label: string(item.label, 24, 'Название смены'), color: item.color.toLowerCase() };
+      if (item.hidden !== undefined && typeof item.hidden !== 'boolean') fail('Неверный признак скрытой кнопки смены.');
+      return { id: id(item.id, 'Смена'), label: string(item.label, 24, 'Название смены'), color: item.color.toLowerCase(), ...(item.hidden ? {hidden:true} : {}) };
     });
     const shiftIds = unique(shifts, 'Смены');
     record(input.weeks, 'Недели');
@@ -195,9 +196,9 @@
   function retiredShift(shift) {
     return ['В', 'ОТ', 'Б', '12:00–00:00'].includes(shiftLabelKey(shift.label));
   }
-  function selectableShifts(state) {
+  function selectableShifts(state, {includeHidden=false} = {}) {
     const order = new Map(SHIFT_PRESETS.map((shift, index) => [shiftLabelKey(shift.label), index]));
-    return state.shifts.filter(shift => !retiredShift(shift)).sort((a, b) =>
+    return state.shifts.filter(shift => !retiredShift(shift) && (includeHidden || !shift.hidden)).sort((a, b) =>
       (order.get(shiftLabelKey(a.label)) ?? 3) - (order.get(shiftLabelKey(b.label)) ?? 3));
   }
   function configureShiftPresets(input) {

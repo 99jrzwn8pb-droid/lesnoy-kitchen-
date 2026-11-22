@@ -260,3 +260,67 @@ test('similar imported names with independent pay or ambiguous targets are never
  delete b.people.weekly;b.roster.push({id:'excel_2',name:'Тестовский Алексей',role:'Повар'});
  assert.equal(T.mergeImportedDuplicates(b,s).roster.length,3);
 });
+
+
+test('repeat sync deletes even edited confirmed transferred cells after saving while independent facts survive', () => {
+  const s=schedule(), b=book();
+  b.days['monthly-a']={'2028-02-01':cell(1.5,true,'Отдельный факт')};
+  let out=T.importWeek(b,s,'2028-01-31').book;
+  out.days['monthly-a']['2028-01-31']=cell(2,true,'Примечание изменено');
+  const saved=T.load(memory({[T.STORAGE_KEY]:JSON.stringify(out)})).book;
+  s.weeks['2028-01-31']['weekly-a'][0]='';s.weeks['2028-01-31']['weekly-a'][1]='';
+  const before=JSON.stringify(saved),result=T.importWeek(saved,s,'2028-01-31');
+  assert.equal(result.removed,1);assert.equal(result.book.days['monthly-a']['2028-01-31'],undefined);
+  assert.deepEqual(result.book.days['monthly-a']['2028-02-01'],cell(1.5,true,'Отдельный факт'));
+  assert.equal(result.book.scheduleSources['monthly-a']['2028-01-31'],undefined);
+  assert.equal(JSON.stringify(saved),before);assert.equal(T.importWeek(result.book,s,'2028-01-31').changes.length,0);
+});
+
+test('empty or missing weekly row clears only that weeks linked dates across a month boundary', () => {
+  const s=schedule();let out=T.importWeek(book(),s,'2028-01-31').book;
+  out.days['monthly-a']['2028-02-07']=cell(1,true,'Другая неделя');
+  delete s.weeks['2028-01-31']['weekly-a'];
+  const result=T.importWeek(out,s,'2028-01-31');
+  assert.equal(result.removed,6);assert.equal(result.book.days['monthly-a']['2028-02-07'].value,1);
+  assert.equal(result.book.days['monthly-b']['2028-01-31'].value,0);
+});
+
+test('legacy transfer notes are recognized once and the persistent link survives changed notes', () => {
+  const b=book(),s=schedule();b.days['monthly-a']={'2028-01-31':cell(1,true,'Из графика: Р')};
+  let out=T.importWeek(b,s,'2028-01-31').book;
+  assert.equal(out.scheduleSources['monthly-a']['2028-01-31'].employee,'weekly-a');
+  out.days['monthly-a']['2028-01-31']=cell(.5,true,'Изменено');s.weeks['2028-01-31']['weekly-a'][0]='';
+  assert.equal(T.importWeek(out,s,'2028-01-31').book.days['monthly-a']['2028-01-31'],undefined);
+  b.days['monthly-a']['2028-01-31'].note='Из графика: Р';
+  assert.equal(T.importWeek(b,s,'2028-01-31').book.days['monthly-a']['2028-01-31'],undefined);
+});
+
+test('sync source metadata validates dates, identities and limits without mutating input', () => {
+  const b=book();b.scheduleSources={'monthly-a':{'2028-02-01':{week:'2028-01-31',employee:'weekly-a'}}};
+  assert.deepEqual(T.validateBook(b).scheduleSources,b.scheduleSources);
+  b.scheduleSources['monthly-a']['2028-02-01'].week='2028-02-01';assert.throws(()=>T.validateBook(b),/неделю/);
+  b.scheduleSources['monthly-a']['2028-02-01'].week='2028-02-07';assert.throws(()=>T.validateBook(b),/неделю/);
+  b.scheduleSources['monthly-a']['2028-02-01']={week:'2028-01-31',employee:'__proto__'};assert.throws(()=>T.validateBook(b),/идентификатор/);
+});
+
+test('cancel removes every transfer of the selected week including edited confirmed facts but preserves manual cells and other weeks',()=>{
+ const s=schedule(),b=book();b.days['monthly-a']={'2028-02-01':cell(.5,true,'Отдельный факт')};
+ let out=T.importWeek(b,s,'2028-01-31').book;
+ out.days['monthly-a']['2028-01-31']=cell(2,true,'Правка');
+ s.weeks['2028-01-31']['weekly-a'][5]='time';out=T.importWeek(out,s,'2028-01-31').book;
+ out.scheduleSources['monthly-a']['2028-02-07']={week:'2028-02-07',employee:'weekly-a'};out.days['monthly-a']['2028-02-07']=cell(1,true,'Другая неделя');
+ const saved=T.validateBook(JSON.parse(JSON.stringify(out))),before=JSON.stringify(saved),result=T.cancelWeekTransfer(saved,s,'2028-01-31');
+ assert.equal(result.removed,7);assert.equal(T.weekTransferEntries(result.book,s,'2028-01-31').length,0);
+ assert.deepEqual(result.book.days['monthly-a'],{'2028-02-01':cell(.5,true,'Отдельный факт'),'2028-02-07':cell(1,true,'Другая неделя')});
+ assert.equal(JSON.stringify(saved),before);assert.equal(T.cancelWeekTransfer(result.book,s,'2028-01-31').changed,0);
+ assert.deepEqual(result.book.profiles,saved.profiles);
+ assert.equal(T.importWeek(result.book,s,'2028-01-31').added,7,'Can transfer the same week again after cancellation');
+});
+
+test('cancel recognizes legacy transfers and clears links even when staff were removed from the weekly roster',()=>{
+ const b=book(),s=schedule();b.days['monthly-a']={'2028-02-01':cell(1,true,'Из графика: 10:30–22:30')};
+ assert.equal(T.cancelWeekTransfer(b,s,'2028-01-31').removed,1);
+ const out=T.importWeek(b,s,'2028-01-31').book;s.employees=[];
+ assert.equal(T.cancelWeekTransfer(out,s,'2028-01-31').removed,7);
+ assert.throws(()=>T.cancelWeekTransfer(out,s,'2028-02-01'),/понедельника/);
+});

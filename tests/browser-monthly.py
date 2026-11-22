@@ -152,6 +152,49 @@ def weekly_palette_checks(page):
     assert page.locator('#shift-palette > button').nth(-1).get_attribute('id') == 'revision-picker'
 
 
+def transfer_and_hold_checks(page):
+    day='#schedule-body [data-person="demo-a"][data-day="0"]'
+    page.locator('#shift-palette [data-brush="day"]').click()
+    page.locator(day).click()
+    page.locator('#sync-timesheet').click()
+    assert page.evaluate("LesnoyTimesheet.getBook().days['demo-a']['2026-11-16'].value") == 1
+    page.locator('#ts-open').click()
+    page.locator('#ts-table [data-ts-person="demo-a"][data-date="2026-11-16"]').click()
+    page.locator('#ts-cell-form [name=value]').fill('1,5')
+    page.locator('#ts-cell-form [name=confirmed]').check()
+    page.locator('#ts-cell-form [name=note]').fill('Ручная правка переноса')
+    submit(page,'#ts-cell-form')
+    page.reload(wait_until='networkidle')
+    page.locator('#shift-palette [data-brush=""]').click()
+    page.locator(day).click()
+    assert page.evaluate("LesnoyTimesheet.getBook().days['demo-a']['2026-11-16'].value") == 1.5
+    page.locator('#sync-timesheet').click()
+    assert page.evaluate("!LesnoyTimesheet.getBook().days['demo-a']['2026-11-16']")
+    page.locator('#shift-palette [data-brush="day"]').click()
+    page.locator(day).click()
+    page.locator('#sync-timesheet').click()
+    weekly=page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')
+    page.once('dialog',lambda d:d.accept())
+    page.locator('#cancel-timesheet-transfer').click()
+    assert page.locator('#cancel-timesheet-transfer').is_disabled()
+    assert page.evaluate("!LesnoyTimesheet.getBook().days['demo-a']['2026-11-16']")
+    assert page.evaluate("LesnoyTimesheet.getBook().days['demo-a']['2026-11-01'].value") == .5
+    assert page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)') == weekly
+    target='#shift-palette [data-brush="day"]'
+    page.locator(target).dispatch_event('pointerdown',{'button':0,'isPrimary':True,'pointerId':1,'clientX':10,'clientY':10})
+    page.locator('#hide-time-button').wait_for(state='visible')
+    page.locator(target).dispatch_event('pointerup',{'button':0,'pointerId':1})
+    page.locator('#hide-time-button').click()
+    assert page.locator(target).count() == 0
+    page.reload(wait_until='networkidle')
+    assert page.locator(target).count() == 0
+    assert page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)') == weekly
+    page.locator('#manage-shifts').click()
+    page.locator('[data-show-shift="day"]').click()
+    page.locator('#close-dialog').click()
+    assert page.locator(target).is_visible()
+
+
 def landscape_checks(page):
     weekly = page.evaluate("localStorage.getItem(LesnoyCore.STORAGE_KEY)")
     monthly = page.evaluate("localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)")
@@ -279,6 +322,7 @@ def verify_page(browser, base_url, mobile=False):
     assert "Демо повар" in page.locator("#schedule-body").inner_text()
     assert not errors, f"Browser errors: {errors}"
     weekly_palette_checks(page)
+    transfer_and_hold_checks(page)
     page.locator("#export-png").click()
     png_quality_checks(page, mobile, weekly=True)
     page.locator("#close-dialog").click()

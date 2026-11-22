@@ -64,7 +64,7 @@
     return checkMonth(date.toISOString().slice(0, 7));
   }
   function createBook(month) {
-    return { version: 2, people: {}, roster: [], days: {}, confirmed: {}, overrides: {}, profiles: {}, aliases: {}, mergedRows: {}, selectedMonth: monthKey(month), updatedAt: new Date().toISOString() };
+    return { version: 2, people: {}, roster: [], days: {}, confirmed: {}, overrides: {}, profiles: {}, aliases: {}, mergedRows: {}, scheduleSources: {}, selectedMonth: monthKey(month), updatedAt: new Date().toISOString() };
   }
   function readProfile(p) {
     record(p, 'Ставка');
@@ -98,6 +98,18 @@
         if (++count > 200000) fail('В табеле больше 200 000 записей о сменах.');
         if (typeof cell.value !== 'number' || !Number.isFinite(cell.value) || cell.value < 0 || cell.value > 3 || typeof cell.confirmed !== 'boolean') fail('Неверная смена: укажите число от 0 до 3 и подтверждение.');
         out.days[id][date] = { value: cell.value, confirmed: cell.confirmed, note: text(cell.note, 200, 'Примечание', true) };
+      }
+    }
+    const sources = input.scheduleSources === undefined ? {} : record(input.scheduleSources, 'Связи с графиком');
+    let sourceCount = 0;
+    for (const [id, row] of Object.entries(sources)) {
+      person(id); record(row, 'Связи дней'); out.scheduleSources[id] = {};
+      for (const [date, source] of Object.entries(row)) {
+        parseDate(date); record(source, 'Источник смены');
+        if (++sourceCount > 200000) fail('Слишком много связей с графиком.');
+        const first = parseDate(source.week), delta = (parseDate(date) - first) / 86400000;
+        if (first.getUTCDay() !== 1 || delta < 0 || delta > 6) fail('Дата не входит в неделю источника.');
+        out.scheduleSources[id][date] = {week:source.week, employee:identifier(source.employee)};
       }
     }
     for (const [id, row] of Object.entries(input.overrides)) {
@@ -197,11 +209,12 @@
       if (pairs.filter(p=>p.upper.id===upper.id).length!==1) continue;
       const archived=createBook(out.selectedMonth);
       archived.roster=[{...lower}];
-      for (const key of ['people','days','overrides']) if(out[key][lower.id]!==undefined) archived[key][lower.id]=out[key][lower.id];
+      for (const key of ['people','days','overrides','scheduleSources']) if(out[key][lower.id]!==undefined) archived[key][lower.id]=out[key][lower.id];
       for(const [m,row] of Object.entries(out.profiles))if(row[lower.id])archived.profiles[m]={[lower.id]:row[lower.id]};
       out.mergedRows[lower.id]={targetId:upper.id,source:validateBook(archived)};
       const target=out.days[upper.id] ||= {};
-      for(const [date,value] of Object.entries(out.days[lower.id]||{}))if(!own(target,date))target[date]={...value};
+      for(const [date,value] of Object.entries(out.days[lower.id]||{}))if(!own(target,date)){target[date]={...value};if(out.scheduleSources[lower.id]?.[date])(out.scheduleSources[upper.id] ||= {})[date]=out.scheduleSources[lower.id][date];}
+      delete out.scheduleSources[lower.id];
       for(const key of ['people','days','overrides'])delete out[key][lower.id];
       for(const row of Object.values(out.profiles))delete row[lower.id];
       out.roster=out.roster.filter(p=>p.id!==lower.id);
@@ -278,7 +291,8 @@
     const dates = Array.from({ length: 7 }, (_, i) => {
       const key = new Date(first.getTime() + i * 86400000).toISOString().slice(0, 10); parseDate(key); return key;
     });
-    let out = validateBook(book), added = 0, skipped = 0;
+    let out = validateBook(book), added = 0, removed = 0, skipped = 0;
+    const changes = [];
     const rows = schedule && schedule.weeks && schedule.weeks[monday] || {};
     record(rows, 'График недели');
     const shifts = new Map((schedule && Array.isArray(schedule.shifts) ? schedule.shifts : []).map(s => [s.id, s]));
@@ -296,21 +310,56 @@
     }
     const touched = new Map();
     for (const p of schedule && Array.isArray(schedule.employees) ? schedule.employees : []) {
-      const id = map.byWeeklyId[p.id], row = rows[p.id];
-      if (!id || row === undefined) continue;
+      const id = map.byWeeklyId[p.id], row = rows[p.id] || Array(7).fill('');
+      if (!id) continue;
       if (!Array.isArray(row) || row.length !== 7) fail('В графике сотрудника должно быть семь дней.');
       row.forEach((shiftId, i) => {
-        const shift = shifts.get(shiftId); if (!shift) return;
-        const date = dates[i];
-        if (out.days[id] && own(out.days[id], date)) { skipped++; return; }
-        const label = String(shift.label).toLocaleUpperCase('ru-RU').trim();
-        const isWork = label === 'Р' || /^\d{1,2}(?::\d{2})?\s*[-–—]\s*\d{1,2}(?::\d{2})?$/.test(label);
-        (out.days[id] ||= {})[date] = { value: isWork ? 1 : 0, confirmed: false, note: ('Из графика: ' + shift.label).slice(0, 200) };
-        const m = date.slice(0, 7); if (!touched.has(m)) touched.set(m, new Set()); touched.get(m).add(id); added++;
+        const shift = shifts.get(shiftId), date = dates[i];
+        const before = out.days[id]?.[date] || null, beforeSource = out.scheduleSources[id]?.[date] || null;
+        // Старые переносы содержали только служебное примечание. Один раз
+        // восстанавливаем связь; последующие правки примечания её уже не теряют.
+        const legacy = before && before.note.startsWith('Из графика: ') && [...shifts.values()].some(s => before.note === ('Из графика: '+s.label).slice(0,200));
+        const source = beforeSource || (legacy ? {week:monday, employee:p.id} : null);
+        const linked = source && source.week === monday && source.employee === p.id;
+        if (!shift) {
+          if (!linked) return;
+          if (before) { delete out.days[id][date]; removed++; }
+          if (out.scheduleSources[id]) delete out.scheduleSources[id][date];
+        } else if (before) {
+          skipped++;
+          if (!beforeSource && linked) (out.scheduleSources[id] ||= {})[date] = source;
+        } else {
+          const label = String(shift.label).toLocaleUpperCase('ru-RU').trim();
+          const isWork = label === 'Р' || /^\d{1,2}(?::\d{2})?\s*[-–—]\s*\d{1,2}(?::\d{2})?$/.test(label);
+          (out.days[id] ||= {})[date] = {value:isWork ? 1 : 0, confirmed:false, note:('Из графика: '+shift.label).slice(0,200)};
+          (out.scheduleSources[id] ||= {})[date] = {week:monday, employee:p.id};
+          const m = date.slice(0,7); if (!touched.has(m)) touched.set(m,new Set()); touched.get(m).add(id); added++;
+        }
+        const after = out.days[id]?.[date] || null, afterSource = out.scheduleSources[id]?.[date] || null;
+        if (JSON.stringify([before,beforeSource]) !== JSON.stringify([after,afterSource])) changes.push({id,date,before,after,beforeSource,afterSource});
       });
     }
     for (const [m, ids] of touched) out = snapshotProfiles(out, m, [...ids]);
-    return { book: validateBook(out), added, skipped };
+    return {book:validateBook(out), added, removed, skipped, changes};
+  }
+
+  function weekTransferEntries(book, schedule, monday) {
+    const first=parseDate(monday);
+    if(first.getUTCDay()!==1)fail('Неделя должна начинаться с понедельника.');
+    const entries=new Map(), add=(id,date)=>entries.set(id+'|'+date,{id,date});
+    for(const [id,row] of Object.entries(book.scheduleSources||{}))for(const [date,source] of Object.entries(row))if(source.week===monday)add(id,date);
+    const map=employeeMap(book,schedule),labels=new Set((schedule?.shifts||[]).map(s=>('Из графика: '+s.label).slice(0,200)));
+    for(const p of schedule?.employees||[]){const id=map.byWeeklyId[p.id];if(!id)continue;
+      for(let i=0;i<7;i++){const date=new Date(first.getTime()+i*86400000).toISOString().slice(0,10),x=book.days[id]?.[date];
+        if(!book.scheduleSources?.[id]?.[date]&&x&&labels.has(x.note))add(id,date);
+      }
+    }
+    return [...entries.values()];
+  }
+  function cancelWeekTransfer(book, schedule, monday) {
+    const out=validateBook(book),entries=weekTransferEntries(out,schedule,monday);let removed=0;
+    for(const {id,date} of entries){if(out.days[id]?.[date]){delete out.days[id][date];removed++;}if(out.scheduleSources[id])delete out.scheduleSources[id][date];}
+    return {book:validateBook(out),removed,changed:entries.length};
   }
   function errorText(error) { return error && typeof error.message === 'string' && /[а-яё]/i.test(error.message) ? error.message : 'Хранилище недоступно или заполнено.'; }
   function decode(raw) {
@@ -358,5 +407,5 @@
     } catch (_) { /* Успешная запись основного табеля не отменяется ошибкой копии. */ }
     return next;
   }
-  return { STORAGE_KEY, BACKUP_KEY, createBook, validateBook, load, save, monthKey, checkMonth, dayCount, dateOf, addMonths, parseDate, normalizeName, employees, mergeImportedDuplicates, employeeMap, resolveEmployee, profile, totals, monthlyTotal, snapshotProfiles, importWeek };
+  return { STORAGE_KEY, BACKUP_KEY, createBook, validateBook, load, save, monthKey, checkMonth, dayCount, dateOf, addMonths, parseDate, normalizeName, employees, mergeImportedDuplicates, employeeMap, resolveEmployee, profile, totals, monthlyTotal, snapshotProfiles, importWeek, weekTransferEntries, cancelWeekTransfer };
 });

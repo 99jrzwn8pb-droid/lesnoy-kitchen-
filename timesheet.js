@@ -55,7 +55,7 @@ function render(){
  const empty=list.length?'':'<tr><td colspan="'+(count+5)+'" class="ts-empty"><strong>Загрузите свой табель Excel</strong><p>Сотрудники, должности, смены и ставки сохранятся только в этом браузере.</p><button class="button primary" data-ts-import>Импорт Excel / JSON</button> <button class="button" data-ts-add>Добавить сотрудника</button></td></tr>';
  $('ts-table').innerHTML='<colgroup>'+cols+'</colgroup>'+head+'<tbody>'+rows+empty+'</tbody><tfoot><tr class="ts-repeat"><th colspan="2"></th>'+dates+'<th colspan="3"></th></tr><tr><th colspan="2">ФОТ за '+esc(monthName(month))+'</th>'+weekdays+'<th colspan="2">Итого</th><th class="ts-grand-total">'+num(T.monthlyTotal(book,list,month))+'</th></tr></tfoot>';
  $('ts-month').value=month;$('ts-month-label').textContent=monthName(month);$('ts-palette').innerHTML=['1','0.5','1.5','0','erase'].map(v=>'<button class="shift-chip" data-ts-brush="'+v+'" aria-pressed="'+(brush===v)+'">'+(v==='erase'?'⌫':v.replace('.',','))+'</button>').join('');
- $('ts-undo').disabled=!history.length||external;status();if(active)initView();view?.refresh();
+ $('ts-undo').disabled=!history.length||external;updateTransferControls();status();if(active)initView();view?.refresh();
 }
 function initView(){if(view||!window.LesnoyTimesheetViewport)return;view=window.LesnoyTimesheetViewport.create({viewport:$('ts-body'),surface:$('ts-surface'),content:$('ts-table'),frozenWidth:335,headerHeight:()=>$('ts-table').tHead.offsetHeight,onScale:s=>$('ts-zoom-level').textContent=s.percent+'%'});}
 function open(){if(!active){oldStatus={text:$('save-status').textContent,error:$('save-status').classList.contains('error')};weeklyPNG=$('export-png').onclick;}active=true;$('ts-panel').hidden=false;$('schedule-panel').hidden=true;document.documentElement.classList.add('monthly-active');$('ts-open').setAttribute('aria-pressed','true');$('ts-back').setAttribute('aria-pressed','false');$('export-png').onclick=pngDialog;try{render();}catch(error){warning=error.message;status();}requestAnimationFrame(()=>view?.refresh());}
@@ -86,9 +86,22 @@ function undo(){if(!history.length||external)return;book=history.pop();month=boo
 function syncOpenWeek(){
  try{
   const current=schedule(),week=current.selectedWeek,result=T.importWeek(book,current,week);
-  if(!result.added){toast('Новых смен нет: заполненные дни табеля сохранены.');return;}
-  if(commit(next=>{Object.assign(next,result.book);next.selectedMonth=week.slice(0,7);},'Перенесено черновиков: '+result.added+' · Заполненные дни сохранены')){month=week.slice(0,7);render();}
+  if(!result.changes.length){toast('Изменений нет: табель уже соответствует переносу недели.');return;}
+  if(commit(next=>{Object.assign(next,result.book);next.selectedMonth=week.slice(0,7);},'Перенесено черновиков: '+result.added+' · Удалено смен: '+result.removed)){month=week.slice(0,7);render();}
  }catch(error){toast('Не удалось перенести неделю: '+error.message);}
+}
+function updateTransferControls(){
+ try{const current=schedule(),disabled=external||!T.weekTransferEntries(book,current,current.selectedWeek).length;
+  $('cancel-timesheet-transfer').disabled=disabled;$('ts-cancel-week').disabled=disabled;
+ }catch(_){$('cancel-timesheet-transfer').disabled=true;$('ts-cancel-week').disabled=true;}
+}
+function cancelOpenWeekTransfer(){
+ try{const current=schedule(),week=current.selectedWeek,result=T.cancelWeekTransfer(book,current,week);
+  if(!result.changed){toast('Для этой недели нет переносов, которые можно отменить.');return;}
+  const dates=C.weekDates(week),range=dates[0].split('-').reverse().join('.')+' — '+dates[6].split('-').reverse().join('.');
+  if(!confirm('Отменить все переносы недели '+range+'? Из табеля будут удалены все перенесённые смены этой недели, включая изменённые и подтверждённые. Отдельно внесённые смены сохранятся.'))return;
+  commit(next=>Object.assign(next,result.book),'Все переносы недели отменены · Удалено смен: '+result.removed);
+ }catch(error){toast('Не удалось отменить перенос: '+error.message);}
 }
 function confirmMonth(){if(!confirm('Подтвердить все черновики за '+monthName(month)+'? Они войдут в расчёт выплаты.'))return;commit(next=>{for(const row of Object.values(next.days))for(const [date,x]of Object.entries(row))if(date.startsWith(month+'-'))x.confirmed=true;},'Смены месяца подтверждены');}
 function download(name,data,type){const blob=data instanceof Blob?data:new Blob([data],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
@@ -137,6 +150,8 @@ function paste(event){
 $('ts-open').onclick=open;$('ts-back').onclick=close;
 $('ts-month').onchange=e=>setMonth(e.target.value);$('ts-prev').onclick=()=>{try{setMonth(T.addMonths(month,-1));}catch(e){toast(e.message);}};$('ts-next').onclick=()=>{try{setMonth(T.addMonths(month,1));}catch(e){toast(e.message);}};
 $('ts-palette').onclick=e=>{const b=e.target.closest('[data-ts-brush]');if(b){brush=b.dataset.tsBrush;render();}};
+document.addEventListener('lesnoy:schedulechange',updateTransferControls);
+$('cancel-timesheet-transfer').onclick=cancelOpenWeekTransfer;$('ts-cancel-week').onclick=cancelOpenWeekTransfer;
 $('ts-undo').onclick=undo;$('ts-addemployee').onclick=()=>editPerson();$('ts-import-week').onclick=syncOpenWeek;$('sync-timesheet').onclick=syncOpenWeek;$('ts-confirm').onclick=confirmMonth;
 $('ts-export').onclick=exportExcel;$('ts-png').onclick=pngDialog;$('ts-backup').onclick=backupJSON;$('ts-csv').onclick=exportCSV;$('ts-retry-save').onclick=persist;
 $('ts-restore').onclick=()=>$('ts-file').click();$('ts-file').onchange=e=>{const file=e.target.files[0];e.target.value='';importFile(file);};
@@ -154,5 +169,6 @@ dialog.addEventListener('close',()=>{exportSequence++;if(exportURL){URL.revokeOb
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
 window.addEventListener('storage',e=>{if(e.key===T.STORAGE_KEY||e.key===null){external=true;warning='Табель изменён в другой вкладке. Редактирование приостановлено, чтобы не перезаписать изменения.';if(active)render();}});
 if(!loaded.error){const repaired=T.mergeImportedDuplicates(book,schedule());if(JSON.stringify(repaired)!==JSON.stringify(book)){book=repaired;persist();}}
+updateTransferControls();
 window.LesnoyTimesheet={getBook:()=>T.validateBook(book),getMonth:()=>month,open,close,importData,importFile};
 })();

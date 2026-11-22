@@ -28,7 +28,7 @@
   let presetsError = null;
   try { state = C.configureShiftPresets(state); } catch (error) { presetsError = error.message; }
   if (normalizeEmployeePhones(state)) state.updatedAt = new Date().toISOString();
-  const visibleShifts = () => C.selectableShifts(state).filter(s => s.label.trim().toLocaleUpperCase('ru-RU') !== 'Р');
+  const visibleShifts = (includeHidden=false) => C.selectableShifts(state,{includeHidden}).filter(s => s.label.trim().toLocaleUpperCase('ru-RU') !== 'Р');
   const ordinaryShifts = () => visibleShifts().filter(s => !/^ревизия(?:\s|$|[:–-])/i.test(s.label.trim()));
   let brush = ordinaryShifts()[0]?.id ?? null;
   let editMode = false;
@@ -171,6 +171,7 @@
     $('schedule-foot').replaceChildren();
     $('team-count').textContent = state.employees.length + ' чел. / ' + state.departments.length + ' цеха';
     scheduleViewport?.refresh();
+    document.dispatchEvent(new CustomEvent('lesnoy:schedulechange'));
   }
   function initScheduleViewport() {
     if (!window.LesnoyViewport) return;
@@ -243,8 +244,9 @@
     });
   }
   function shiftList() {
-    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${visibleShifts().map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}</span><button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
+    modal('Варианты смен',`<p class="dialog-note">Настройте время и обозначения. Изменение названия или цвета применяется ко всем неделям, где выбрана эта смена.</p>${visibleShifts(true).map((s) => `<div class="list-row"><i class="color-dot" style="--shift-color:${s.color}"></i><span>${esc(s.label)}${s.hidden?' · убрана из меню':''}</span>${s.hidden?`<button class="button small" data-show-shift="${esc(s.id)}">Вернуть кнопку</button>`:''}<button class="button small" data-edit-shift="${esc(s.id)}">Изменить</button></div>`).join('')}<div class="form-actions"><button id="new-shift" class="button primary">＋ Новая смена</button></div>`,(body) => {
       body.querySelectorAll('[data-edit-shift]').forEach((b) => { b.onclick = () => shiftEditor(b.dataset.editShift); });
+      body.querySelectorAll('[data-show-shift]').forEach(b=>{b.onclick=()=>{if(commit(next=>{delete next.shifts.find(s=>s.id===b.dataset.showShift).hidden;},'Кнопка времени возвращена'))shiftList();};});
       body.querySelector('#new-shift').onclick = () => shiftEditor();
     });
   }
@@ -522,7 +524,27 @@
       }; });
     });
   }
+  let shiftHoldTimer,shiftHoldStart,blockShiftClickUntil=0;
+  function cancelShiftHold(){clearTimeout(shiftHoldTimer);shiftHoldStart=null;}
+  function heldTimeButton(target){const button=target.closest('#shift-palette [data-brush]');return button&&intervalFromLabel(shiftById(button.dataset.brush)?.label)?button:null;}
+  function hideTimeButton(shiftId){
+    const shift=shiftById(shiftId);if(!shift||shift.hidden)return;
+    blockShiftClickUntil=Date.now()+900;
+    modal('Убрать кнопку времени?',`<p class="dialog-note">Убрать «${esc(shift.label)}» из меню? Все проставленные смены сохранятся. Вернуть кнопку можно через «Настроить».</p><div class="form-actions"><button class="button" data-close>Отмена</button><button id="hide-time-button" class="button danger">Убрать кнопку</button></div>`,body=>{
+      body.querySelector('#hide-time-button').onclick=()=>{if(commit(next=>{next.shifts.find(s=>s.id===shiftId).hidden=true;},'Кнопка времени убрана. Смены сохранены.'))closeModal();};
+    });
+  }
+  $('shift-palette').addEventListener('pointerdown',event=>{
+    cancelShiftHold();const button=heldTimeButton(event.target);if(!button||event.button!==0||event.isPrimary===false)return;
+    shiftHoldStart={x:event.clientX,y:event.clientY,id:event.pointerId};const shiftId=button.dataset.brush;
+    shiftHoldTimer=setTimeout(()=>{shiftHoldStart=null;hideTimeButton(shiftId);},600);
+  });
+  $('shift-palette').addEventListener('pointermove',event=>{if(shiftHoldStart&&(Math.hypot(event.clientX-shiftHoldStart.x,event.clientY-shiftHoldStart.y)>10))cancelShiftHold();});
+  for(const type of ['pointerup','pointercancel','pointerleave'])$('shift-palette').addEventListener(type,cancelShiftHold);
+  $('shift-palette').addEventListener('contextmenu',event=>{const button=heldTimeButton(event.target);if(button){event.preventDefault();cancelShiftHold();hideTimeButton(button.dataset.brush);}});
+  document.addEventListener('visibilitychange',cancelShiftHold);
   $('shift-palette').onclick = (event) => {
+    if(Date.now()<blockShiftClickUntil){event.preventDefault();event.stopPropagation();return;}
     if (event.target.closest('#revision-picker')) { revisionPicker(shiftId => { brush=shiftId;editMode=false;render(); }); return; }
     const b = event.target.closest('[data-brush]'); if (b) { brush = b.dataset.brush; editMode = false; render(); }
   };

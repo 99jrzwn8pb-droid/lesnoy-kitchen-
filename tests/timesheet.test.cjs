@@ -211,3 +211,35 @@ test('monthly background click clears selection and cannot accidentally paint a 
  assert.equal(h.w.document.querySelector('#ts-palette [aria-pressed="true"]'),null);
  h.click(h.cell('test-shift','2026-11-20'));assert.equal(h.shared.get(MONTHLY),before);
 });
+
+test('repeat weekly sync removes a confirmed manually edited transferred cell after reload and preserves independent facts',t=>{
+ const shared=storageFixture(),h=harness(t,shared);
+ h.click('#ts-import-week');
+ h.click(h.cell('test-shift','2026-11-16'));
+ h.submit('#ts-cell-form',{value:'1,5',confirmed:true,note:'Изменено вручную'});
+ h.click(h.cell('test-shift','2026-11-18'));
+ h.click(h.cell('test-shift','2026-11-18'));
+ h.submit('#ts-cell-form',{value:'0,5',confirmed:true,note:'Независимый факт'});
+ const reload=harness(t,shared);reload.click('#ts-back');reload.click('#shift-palette [data-brush=""]');
+ reload.click('#schedule-body [data-person="test-shift"][data-day="0"]');
+ assert.equal(reload.read().days['test-shift']['2026-11-16'].value,1.5,'Deletion waits for the explicit sync button');
+ reload.click('#sync-timesheet');
+ assert.equal(reload.read().days['test-shift']['2026-11-16'],undefined);
+ assert.equal(reload.read().days['test-shift']['2026-11-18'].value,.5);
+ assert.equal(Monthly.totals(reload.read(),'test-shift','2026-11').amount,600);
+ assert.equal(harness(t,shared).read().days['test-shift']['2026-11-16'],undefined);
+});
+
+test('all-week cancellation survives reload and supports cancel confirmation, undo and repeated transfer',t=>{
+ const shared=storageFixture(),h=harness(t,shared);h.click('#ts-back');assert.equal(h.q('#cancel-timesheet-transfer').disabled,true);
+ h.click('#sync-timesheet');assert.equal(h.q('#cancel-timesheet-transfer').disabled,false);
+ const reload=harness(t,shared),weekly=shared.get(WEEKLY);assert.equal(reload.q('#ts-cancel-week').disabled,false);
+ reload.w.confirm=()=>false;const before=shared.get(MONTHLY);reload.click('#ts-cancel-week');assert.equal(shared.get(MONTHLY),before);
+ reload.w.confirm=()=>true;reload.click('#ts-cancel-week');
+ assert.equal(reload.read().days['test-shift']['2026-11-16'],undefined);assert.equal(reload.q('#ts-cancel-week').disabled,true);
+ assert.equal(shared.get(WEEKLY),weekly);
+ reload.click('#ts-undo');assert.equal(reload.read().days['test-shift']['2026-11-16'].value,1);
+ reload.click('#ts-back');reload.click('#next-week');assert.equal(reload.q('#cancel-timesheet-transfer').disabled,true);
+ reload.click('#prev-week');assert.equal(reload.q('#cancel-timesheet-transfer').disabled,false);
+ reload.click('#cancel-timesheet-transfer');reload.click('#sync-timesheet');assert.equal(reload.read().days['test-shift']['2026-11-16'].value,1);
+});

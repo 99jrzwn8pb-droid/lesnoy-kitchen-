@@ -538,3 +538,13 @@ test('старые варианты, используемые только в с
   }
   assert.deepEqual(C.selectableShifts(upgraded).map(s=>s.label),['10–22','11:30–23:30','Р']);
 });
+
+test('hidden time buttons persist without changing referenced shifts and remain restorable in configuration',()=>{
+ const C=require(require('./site-path.cjs')('core.js')),s=C.configureShiftPresets(C.createState('2026-11-16'));
+ const time=s.shifts.find(x=>x.label.includes('10'));time.hidden=true;
+ const saved=C.validateState(JSON.parse(JSON.stringify(s)));
+ assert.equal(C.selectableShifts(saved).some(x=>x.id===time.id),false);
+ assert.equal(C.selectableShifts(saved,{includeHidden:true}).some(x=>x.id===time.id),true);
+ assert.equal(C.configureShiftPresets(saved).shifts.find(x=>x.id===time.id).hidden,true);
+ time.hidden='yes';assert.throws(()=>C.validateState(s),/скрытой/);
+});

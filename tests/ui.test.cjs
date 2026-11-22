@@ -1156,3 +1156,24 @@ test('one revision picker follows erase, offers morning/night, and persists the 
  const next=h.read();assert.equal(next.shifts.find(x=>x.id===next.weeks[next.selectedWeek][person][2]).label,'Ревизия утро');
  const reloaded=harness(t,h.shared);assert.equal(reloaded.read().weeks[next.selectedWeek][person][2],next.weeks[next.selectedWeek][person][2]);
 });
+
+test('holding a used time button hides it only after confirmation and survives reload with every weekly cell intact',async t=>{
+ const h=harness(t),person=h.addEmployee();h.click('[data-brush="day"]');h.click(h.cell(person,0));
+ const weeks=JSON.stringify(h.read().weeks),button=h.q('[data-brush="day"]');
+ button.dispatchEvent(new h.w.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:10,clientY:10}));
+ await new Promise(r=>setTimeout(r,650));assert.equal(h.q('#editor-dialog').open,true);
+ assert.equal(h.read().shifts.find(x=>x.id==='day').hidden,undefined);
+ h.click('#hide-time-button');assert.equal(h.w.document.querySelector('#shift-palette [data-brush="day"]'),null);
+ assert.equal(JSON.stringify(h.read().weeks),weeks);
+ const reload=harness(t,h.shared);assert.equal(reload.w.document.querySelector('#shift-palette [data-brush="day"]'),null);
+ assert.equal(JSON.stringify(reload.read().weeks),weeks);
+ reload.click('#manage-shifts');reload.click('[data-show-shift="day"]');reload.click('#close-dialog');
+ assert.ok(reload.q('#shift-palette [data-brush="day"]'));assert.equal(JSON.stringify(reload.read().weeks),weeks);
+});
+
+test('moving, cancelling or releasing a press prevents hiding, and context-menu removal can be cancelled',async t=>{
+ const h=harness(t),button=h.q('[data-brush="midday"]'),event=(type,x=10)=>button.dispatchEvent(new h.w.MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:10}));
+ for(const type of ['pointerup','pointercancel','pointermove']){event('pointerdown');event(type,30);await new Promise(r=>setTimeout(r,650));assert.equal(h.q('#editor-dialog').open,false);}
+ event('contextmenu');assert.equal(h.q('#editor-dialog').open,true);h.click('#close-dialog');
+ assert.equal(h.read().shifts.find(x=>x.id==='midday').hidden,undefined);
+});
