@@ -34,14 +34,14 @@ function label(node){return node.getAttribute('aria-label')||node.getAttribute('
 function candidates(root){
  const list=[];
  for(const e of root.querySelectorAll('button[id],a[id],output[id],#save-status,#team-count,#ts-status,.brand,.week-label,.ts-month-label,.ts-check,#shift-palette [data-brush],#ts-palette [data-ts-brush]')){
-  if(e.id==='data-menu'||e.closest('dialog')||(e.closest('[hidden]')&&e.closest('[hidden]').id!=='mobile-menu')||list.some(x=>x.el.contains(e)))continue;
+  if(e.id==='data-menu'||getComputedStyle(e).display==='none'||e.closest('dialog')||(e.closest('[hidden]')&&e.closest('[hidden]').id!=='mobile-menu')||list.some(x=>x.el.contains(e)))continue;
   let key=e.id?'id:'+e.id:e.hasAttribute('data-brush')?(e.dataset.brush?'week-shift:'+e.dataset.brush:'id:week-erase'):e.hasAttribute('data-ts-brush')?'month-shift:'+e.dataset.tsBrush:e.classList.contains('brand')?'id:brand':e.classList.contains('week-label')?'id:week-label':e.classList.contains('ts-month-label')?'id:month-label':e.querySelector('#ts-freeze')?'id:freeze-label':'id:fact-label';
   list.push({key,el:e});
  }
  return list;
 }
 function activePanels(){return panels.filter(p=>p.matches('.topbar,.view-switch')||(monthly()?p.matches('.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom'):p.matches('.week-toolbar,.paint-toolbar,.table-hint,.table-bottom')));}
-function dimensions(el){const r=el.getBoundingClientRect();return {w:Math.max(28,Math.min(230,r.width||100)),h:Math.max(28,Math.min(72,r.height||34))};}
+function dimensions(el){if(el.id==='ts-status')return {w:360,h:72};const r=el.getBoundingClientRect();return {w:Math.max(28,Math.min(230,r.width||100)),h:Math.max(28,Math.min(72,r.height||34))};}
 function cancelGesture(){gesture=null;}
 function teardown(){
  rebuilding=true;cancelGesture();observer.disconnect();
