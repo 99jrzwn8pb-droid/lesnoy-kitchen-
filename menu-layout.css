@@ -1,14 +1,14 @@
 .menu-layout-frame{flex:0 0 auto;max-height:58dvh;overflow:auto;overscroll-behavior:contain;border:1px solid #ffffffd9;border-radius:18px;background:linear-gradient(145deg,#ffffffc9,#eeeeee80);box-shadow:inset 0 1px 0 #fff,0 3px 16px #3331;-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%)}
 .menu-layout-surface{position:relative;width:100%;isolation:isolate;min-height:120px;overflow:hidden}
-#menu-layout-surface .menu-layout-panel,#menu-layout-surface .menu-layout-panel :where(div,nav,header,section,fieldset):not(.menu-layout-item):not(.menu-layout-item *){display:contents!important}
-#menu-layout-surface .menu-layout-panel{visibility:hidden}
-#menu-layout-surface .menu-layout-item,#menu-layout-surface .menu-layout-item *{visibility:visible}
-#menu-layout-surface .menu-layout-item{box-sizing:border-box;z-index:1;overflow:hidden;max-height:none!important}
-#menu-layout-surface .menu-layout-item[hidden]{display:none!important}
+.menu-layout-surface .menu-layout-panel,.menu-layout-surface .menu-layout-panel :where(div,nav,header,section,fieldset):not(.menu-layout-item):not(.menu-layout-item *){display:contents!important}
+.menu-layout-surface .menu-layout-panel{visibility:hidden}
+.menu-layout-surface .menu-layout-item,.menu-layout-surface .menu-layout-item *{visibility:visible}
+.menu-layout-surface .menu-layout-item{box-sizing:border-box;z-index:1;overflow:hidden;max-height:none!important}
+.menu-layout-surface .menu-layout-item[hidden]{display:none!important}
 .custom-menu-layout.sheet-app #schedule-panel:not([hidden]),.custom-menu-layout.sheet-app #ts-panel:not([hidden]){display:flex!important;flex-direction:column}
 .custom-menu-layout.sheet-app #table-scroll,.custom-menu-layout.sheet-app #ts-body{flex:1 1 auto;min-height:60px}
 .menu-layout-bar{position:sticky;top:0;z-index:8;display:grid;gap:6px;padding:7px;background:#f4f4f4ed;border-bottom:1px solid #ccc;font:11px/1.4 Arial,Helvetica,sans-serif;-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
-.menu-layout-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.menu-layout-actions .button{min-height:30px;padding:5px 8px;font-size:11px}.menu-layout-actions select{min-height:30px;font-size:14px;min-width:90px;border-radius:12px;border:1px solid #ccc;background:#fff9}.menu-layout-size{display:flex;align-items:center;gap:6px}.menu-layout-size input{flex:1;min-width:50px;accent-color:#555}.menu-layout-size output{min-width:38px}.menu-layout-name{min-height:15px;overflow-wrap:anywhere;color:#555}
+.menu-layout-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.menu-layout-actions .button{min-height:30px;padding:5px 8px;font-size:11px}.menu-layout-actions select{min-height:30px;font-size:14px;min-width:90px;border-radius:12px;border:1px solid #ccc;background:#fff9}.menu-layout-size{display:flex;align-items:center;gap:6px}.menu-layout-size input{flex:1;min-width:50px;accent-color:#555}.menu-layout-size output{min-width:38px}.menu-layout-name{height:30px;overflow:hidden;overflow-wrap:anywhere;color:#555}
 .menu-layout-bar>.button{justify-self:start;min-height:28px;padding:4px 8px;font-size:11px}
 .menu-layout-hit{position:absolute;z-index:4;border:1px dashed #6668;border-radius:14px;cursor:move;touch-action:none;outline:none}
 .menu-layout-hit.selected{border:2px solid #555;box-shadow:0 0 0 2px #fff9}
@@ -25,3 +25,17 @@
 #mobile-menu>.menu-layout-frame{overflow:visible}
 #mobile-menu .menu-layout-access{top:53px}
 #mobile-menu .menu-layout-access+.menu-layout-bar{top:89px}
+
+.menu-layout-footer{flex:0 0 auto;max-height:25dvh;overflow:auto;border:1px solid #ffffffd9;border-radius:14px;background:linear-gradient(145deg,#ffffffc9,#eeeeee80);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px)}
+.menu-layout-footer .menu-layout-surface{min-height:40px}
+#mobile-menu>.menu-layout-footer{max-height:none;width:100%;overflow:visible}
+.menu-layout-hit.paired{border:2px solid #52728e;box-shadow:0 0 0 2px #fff9}
+.menu-layout-guide{position:absolute;z-index:6;pointer-events:none;background:#52728eaa}
+.menu-layout-guide.guide-x{width:1px;top:0;bottom:0}.menu-layout-guide.guide-y{height:1px;left:0;right:0}
+.menu-layout-alignment{font-size:11px}.menu-layout-alignment summary{cursor:pointer;padding:3px 0}.menu-layout-alignment>div{display:flex;flex-wrap:wrap;gap:4px;margin:5px 0}.menu-layout-alignment .button{font-size:10px;min-height:28px;padding:4px 7px}
+
+.menu-layout-bar>[data-layout-select]{width:100%;min-width:0;min-height:30px;border:1px solid #ccc;border-radius:10px;background:#fff9;font-size:12px}
+.menu-layout-hit.selected{z-index:7}
+.menu-layout-surface .menu-layout-item.menu-layout-selected{z-index:2}
+/* Параметры прокручиваются, чтобы не закрывать всю область на телефоне. */
+.menu-layout-bar{position:relative;top:0!important}

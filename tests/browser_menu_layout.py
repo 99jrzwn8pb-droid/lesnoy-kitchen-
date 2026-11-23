@@ -32,6 +32,9 @@ def run(browser,url,mobile):
     assert page.locator('.menu-layout-frame').count()==0
     editor(page)
     assert page.locator('.menu-layout-hit').count()>20
+    assert page.locator('#add-employee').evaluate("e=>e.closest('[data-area]').dataset.area")=='bottom'
+    assert page.locator('.menu-layout-footer').bounding_box()['y']>=page.locator('#table-scroll').bounding_box()['y']+page.locator('#table-scroll').bounding_box()['height']-1
+
     png=page.locator('[data-layout-key="id:export-png"]')
     before=png.bounding_box();png.dispatch_event('pointerdown',{'pointerId':11,'button':0,'clientX':before['x']+10,'clientY':before['y']+10})
     page.dispatch_event('body','pointermove',{'pointerId':11,'clientX':before['x']+42,'clientY':before['y']+30})
@@ -41,6 +44,25 @@ def run(browser,url,mobile):
     assert not page.locator('#editor-dialog').is_visible(),'Dragging must never trigger PNG export'
     page.locator('[data-layout-size]').fill('130');page.locator('[data-layout-size]').dispatch_event('input')
     assert png.bounding_box()['width']>before['width']*1.2
+    # Select two controls, match their boxes and mirror their centers.
+    page.locator('.menu-layout-alignment summary').click()
+    page.locator('[data-layout-key="id:prev-week"]').click()
+    page.locator('[data-layout-pair]').click()
+    page.locator('[data-layout-key="id:next-week"]').click()
+    page.locator('[data-layout-align="size"]').click()
+    page.locator('[data-layout-align="mirror"]').click()
+    a=page.locator('[data-layout-key="id:prev-week"]').bounding_box();b=page.locator('[data-layout-key="id:next-week"]').bounding_box();area=page.locator('#menu-layout-surface').bounding_box()
+    assert abs(a['width']-b['width'])<1 and abs(a['height']-b['height'])<1
+    assert abs(a['y']-b['y'])<1
+    assert abs(a['x']+a['width']/2+b['x']+b['width']/2-2*(area['x']+area['width']/2))<1
+    assert page.locator('.menu-layout-guide').count()>0
+    page.locator('.menu-layout-alignment summary').click()
+    # Footer controls remain below the table while being editable in their own area.
+    foot=page.locator('[data-layout-key="id:add-employee"]');point=foot.bounding_box()
+    foot.dispatch_event('pointerdown',{'pointerId':12,'button':0,'clientX':point['x']+5,'clientY':point['y']+5})
+    page.dispatch_event('body','pointermove',{'pointerId':12,'clientX':point['x']+29,'clientY':point['y']+16})
+    page.dispatch_event('body','pointerup',{'pointerId':12})
+    assert foot.evaluate("e=>e.closest('[data-area]').dataset.area")=='bottom'
     page.locator('[data-layout-done]').focus();page.keyboard.press('Control+z')
     assert read_data(page)==original,'Editor keyboard shortcuts must not undo schedule data'
     page.locator('#data-menu').click()
@@ -57,6 +79,17 @@ def run(browser,url,mobile):
     page.locator('#shift-palette [data-brush="midday"]').click()
     assert page.locator('#shift-palette [aria-pressed="true"]').count()==0
     assert read_data(page)==original
+    # A saved change can be undone after reload, not just discarded as a draft.
+    editor(page)
+    page.locator('[data-layout-select]').select_option('id:export-png')
+    page.locator('[data-layout-size]').fill('170');page.locator('[data-layout-size]').dispatch_event('input')
+    page.locator('[data-layout-done]').click()
+    page.reload(wait_until='networkidle');editor(page)
+    page.locator('[data-layout-undo]').click()
+    restored=json.loads(page.evaluate(f'localStorage.getItem({json.dumps(KEY)})'))
+    assert restored['layouts']==saved['layouts']
+    assert 'previous' not in restored
+    assert read_data(page)==original
     editor(page)
     page.locator('[data-layout-view]').select_option('month')
     page.locator('[data-layout-key="month-shift:0.5"]').wait_for(state='visible')
@@ -66,7 +99,7 @@ def run(browser,url,mobile):
     both=json.loads(page.evaluate(f'localStorage.getItem({json.dumps(KEY)})'));assert len(both['layouts'])==2
     assert read_data(page)==original
     page.locator('#ts-back').click();editor(page)
-    page.locator('[data-layout-key="id:copy-week"]').click();page.locator('[data-layout-size]').fill('180');page.locator('[data-layout-size]').dispatch_event('input')
+    page.locator('[data-layout-select]').select_option('id:copy-week');page.locator('[data-layout-size]').fill('180');page.locator('[data-layout-size]').dispatch_event('input')
     page.locator('[data-layout-cancel]').click()
     assert json.loads(page.evaluate(f'localStorage.getItem({json.dumps(KEY)})'))==both
     if mobile:
@@ -75,7 +108,7 @@ def run(browser,url,mobile):
         page.wait_for_function("document.documentElement.classList.contains('landscape-sheet')")
         page.locator('[data-layout-done]').wait_for(state='visible')
         assert page.locator('#mobile-menu .menu-layout-frame').count()==1
-        page.locator('[data-layout-key="id:export-png"]').click()
+        page.locator('[data-layout-select]').select_option('id:export-png')
         page.locator('[data-layout-size]').fill('115');page.locator('[data-layout-size]').dispatch_event('input')
         page.locator('[data-layout-height]').fill('700');page.locator('[data-layout-height]').dispatch_event('input')
         page.locator('#mobile-menu').evaluate('e=>e.scrollTop=180')
@@ -118,6 +151,15 @@ def run(browser,url,mobile):
     page.evaluate("key=>localStorage.setItem(key,JSON.stringify({version:1,layouts:{'coarse-portrait-week':{height:-1,items:{}}}}))",KEY)
     page.reload(wait_until='networkidle')
     assert page.locator('.menu-layout-frame').count()==0
+    # Older stored layouts placed footer buttons in the top canvas. Migrate
+    # them into the bottom area without touching staff or schedule records.
+    current=page.evaluate("(matchMedia('(pointer: coarse)').matches?'coarse':'fine')+'-'+(matchMedia('(orientation: landscape)').matches?'landscape':'portrait')+'-week'")
+    legacy={'version':1,'layouts':{current:{'height':300,'items':{'id:add-employee':{'x':.3,'y':160,'w':100,'h':30,'scale':1}}}}}
+    page.evaluate("([key,value])=>localStorage.setItem(key,JSON.stringify(value))",[KEY,legacy])
+    page.reload(wait_until='networkidle')
+    assert page.locator('#add-employee').evaluate("e=>e.closest('[data-area]').dataset.area")=='bottom'
+    assert page.locator('.menu-layout-footer').bounding_box()['y']>=page.locator('#table-scroll').bounding_box()['y']+page.locator('#table-scroll').bounding_box()['height']-1
+    assert read_data(page)==original
     assert not errors,errors
     context.close();return {'browser':browser.browser_type.name,'mobile':mobile,'menu_layout':'passed'}
 
