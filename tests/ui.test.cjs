@@ -1270,3 +1270,10 @@ test('late clipboard read preserves manual edits and missing API still permits m
  const h=harness(t);h.addEmployee();const before=h.shared.get(KEY);let finish;h.w.navigator.clipboard.readText=()=>new Promise(resolve=>finish=resolve);h.click('#paste-week');h.q('#paste-week-text').value='manual';finish('late');await new Promise(r=>setImmediate(r));assert.equal(h.q('#paste-week-text').value,'manual');h.click('#paste-week-form [data-close]');
  delete h.w.navigator.clipboard.readText;h.click('#paste-week');assert.match(h.q('#paste-note').textContent,/меню телефона/);assert.equal(h.shared.get(KEY),before);
 });
+
+test('monthly secondary tools move into data menu and fact checkbox controls the original setting',t=>{
+ const h=harness(t);h.q('#schedule-panel').hidden=true;h.q('#ts-panel').hidden=false;const before=h.shared.get(KEY);let exports=0;h.q('#ts-export').onclick=()=>exports++;
+ for(const id of ['ts-export','ts-png','ts-backup','ts-restore','ts-csv'])assert.equal(h.q('#'+id).hidden,true);
+ h.click('#data-menu');assert.equal(h.q('#menu-fact').checked,true);h.q('#menu-fact').checked=false;h.q('#menu-fact').dispatchEvent(new h.w.Event('change',{bubbles:true}));assert.equal(h.q('#ts-brush-confirmed').checked,false);
+ h.click('[data-month-action="ts-export"]');assert.equal(exports,1);assert.equal(h.q('#editor-dialog').open,false);assert.equal(h.shared.get(KEY),before);
+});

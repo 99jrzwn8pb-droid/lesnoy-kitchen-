@@ -9,7 +9,7 @@
   const entries = [];
   let landscape = false;
   for (const [selector,panel] of [
-    ['.topbar','common'],['.view-switch','common'],['#storage-warning','common'],
+    ['.topbar','common'],['#storage-warning','common'],
     ['#schedule-panel .week-toolbar','week'],['#schedule-panel .paint-toolbar','week'],
     ['#schedule-panel .table-hint','week'],['#schedule-panel .table-bottom','week'],
     ['.ts-controls','month'],['.ts-paint','month'],['.ts-view-controls','month'],

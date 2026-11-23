@@ -25,6 +25,11 @@ ARTIFACTS = Path(__file__).parent / "artifacts" / "monthly-browser"
 
 
 def download_file(page, selector, destination):
+    if selector in ['#ts-export','#ts-backup','#ts-csv']:
+        if page.locator('#mobile-menu-toggle').is_visible() and not page.locator('#mobile-menu').is_visible():
+            page.locator('#mobile-menu-toggle').click()
+        page.locator('#data-menu').click()
+        selector='[data-month-action="'+selector[1:]+'"]'
     with page.expect_download() as pending:
         page.locator(selector).click()
     download = pending.value
@@ -276,7 +281,6 @@ def close_mobile_menu(page):
 def landscape_function_checks(page):
     # Exercise actual controls while they live in the landscape minibar.
     menu_click(page,'#ts-open')
-    menu_click(page,'#ts-backup')
     backup_path=ARTIFACTS / (page.context.browser.browser_type.name+'-landscape-backup.json')
     raw=download_file(page,'#ts-backup',backup_path)
     assert json.loads(raw)['type']=='lesnoy-combined-backup'
@@ -306,7 +310,7 @@ def landscape_function_checks(page):
     page.locator('#ts-import-apply').wait_for(state='visible')
     page.locator('#ts-import-apply').click()
     assert totals(page)['amount']==value, 'Landscape Excel import preserves payroll'
-    page.locator('#ts-png').click()
+    menu_click(page,'#export-png')
     page.locator('#ts-png-download').wait_for(state='visible')
     print_density(download_file(page,'#ts-png-download',ARTIFACTS / 'landscape-monthly.png'))
     page.locator('#ts-dialog-close').click()
@@ -454,7 +458,7 @@ def verify_page(browser, base_url, mobile=False):
     assert backup["timesheet"]["days"]["demo-a"]["2026-11-01"]["value"] == .5
     excel = download_file(page, "#ts-export", ARTIFACTS / f"{label}-2026-11.xlsx")
     assert excel.startswith(b"PK\x03\x04"), "Excel download is an XLSX archive"
-    page.locator("#ts-png").click()
+    page.locator("#export-png").click()
     page.locator("#ts-png-download").wait_for(state="visible")
     png = download_file(page, "#ts-png-download", ARTIFACTS / f"{label}-export.png")
     assert png.startswith(b"\x89PNG\r\n\x1a\n"), "PNG download is a PNG image"

@@ -3,7 +3,7 @@
 'use strict';
 const ALLOW_EDIT=true,KEY='lesnoy-kitchen:menu-layout:v1';
 const $=id=>document.getElementById(id),clone=x=>JSON.parse(JSON.stringify(x));
-const panelSelectors=['.topbar','.view-switch','.week-toolbar','.paint-toolbar','.table-hint','.table-bottom','.ts-controls','.ts-paint','.ts-view-controls','.ts-bottom'];
+const panelSelectors=['.topbar','.week-toolbar','.paint-toolbar','.table-hint','.table-bottom','.ts-controls','.ts-paint','.ts-view-controls','.ts-bottom'];
 const panels=panelSelectors.map(s=>document.querySelector(s)).filter(Boolean);
 let store={version:1,layouts:{}},draft=null,editing=false,frame=null,surface=null,bar=null,roots=[],items=[],selected=null,gesture=null,queued=false,rebuilding=false,context='',notice='',dataMarker=null;
 let conflict=false,footerFrame=null,footerSurface=null,pair=null,choosingPair=false,snapping=true,guides=null;
@@ -31,6 +31,11 @@ function validate(x){
  return out;
 }
 try{const raw=storage?.getItem(KEY);if(raw)store=validate(JSON.parse(raw));}catch(_){notice='Не удалось прочитать настройки меню. Исходный вид сохранён.';}
+// Новый компактный вид применяется один раз. Прежние координаты доступны через отмену.
+try{if(storage&&!storage.getItem('lesnoy-kitchen:compact-menu:v1')){
+ if(Object.keys(store.layouts).length){const next={version:1,layouts:{},previous:{version:1,layouts:clone(store.layouts)}};storage.setItem(KEY,JSON.stringify(next));store=next;}
+ storage.setItem('lesnoy-kitchen:compact-menu:v1','1');
+}}catch(_){notice='Не удалось применить компактное меню. Настройки сохранены.';}
 const monthly=()=>!$('ts-panel').hidden;
 const landscape=()=>document.documentElement.classList.contains('landscape-sheet');
 const currentKey=()=> (matchMedia('(pointer: coarse)').matches?'coarse':'fine')+'-'+(matchMedia('(orientation: landscape)').matches?'landscape':'portrait')+'-'+(monthly()?'month':'week');

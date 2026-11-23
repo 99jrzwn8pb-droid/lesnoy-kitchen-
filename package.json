@@ -11,7 +11,8 @@
     "test:viewport": "node tests/viewport.test.cjs",
     "test:timesheet": "node --test tests/timesheet*.test.cjs",
     "test:browser": "python tests/browser-monthly.py",
-    "test:menu": "python tests/browser_menu_layout.py"
+    "test:menu": "python tests/browser_menu_layout.py",
+    "test:compact-menu": "python tests/browser_compact_menu.py"
   },
   "devDependencies": {
     "@napi-rs/canvas": "1.0.13",

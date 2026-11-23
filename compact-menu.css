@@ -1,0 +1,88 @@
+/* Одинаковая типографика меню. Таблицы и их масштаб не затрагиваются. */
+:root{--menu-font:13px;--menu-gap:6px;--menu-control:34px}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls,.ts-bottom) :is(.button,.shift-chip,.ts-check,output,.text-button),.menu-layout-access .button{font-size:var(--menu-font)!important;line-height:1.25}
+:is(.topbar,.view-switch,.week-toolbar,.paint-toolbar,.table-hint,.table-bottom,.ts-controls,.ts-paint,.ts-view-controls) :is(.button,.shift-chip){min-height:var(--menu-control);padding:6px 10px}
+:is(.topbar,.week-toolbar,.ts-controls) .button.square{font-size:22px!important;width:32px;padding:0}
+.brand strong,.brand>span:last-child,.save-status,#team-count,#ts-status,.date-control strong,.ts-month-label{font-size:var(--menu-font)!important}
+.menu-layout-access .button{font-size:20px!important}
+/* Автоматическая сетка действует до следующей ручной расстановки. */
+html:not(.custom-menu-layout) .topbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;padding:6px 10px;min-height:46px}
+html:not(.custom-menu-layout) .brand{gap:5px}
+html:not(.custom-menu-layout) .brand-icon{width:18px;height:22px}
+html:not(.custom-menu-layout) .brand-divider,html:not(.custom-menu-layout) .brand>span:last-child{display:none}
+html:not(.custom-menu-layout) .view-switch{display:flex;justify-content:center;gap:6px;min-width:0;padding:0}
+html:not(.custom-menu-layout) .view-switch .button{flex:0 1 auto;margin:0}
+html:not(.custom-menu-layout) .top-actions{gap:6px}
+html:not(.custom-menu-layout) #data-menu{width:34px;padding:0;font-size:22px!important}
+html:not(.custom-menu-layout) #data-menu span,html:not(.custom-menu-layout) #export-png .export-full{display:none}
+html:not(.custom-menu-layout) #save-status{width:7px;flex:0 0 7px;color:transparent;overflow:hidden}
+html:not(.custom-menu-layout) .week-toolbar{display:flex;align-items:stretch;gap:8px;padding:6px 8px}
+html:not(.custom-menu-layout) .week-navigation{display:flex;flex:1;min-width:0;flex-direction:column;align-items:stretch;gap:6px}
+html:not(.custom-menu-layout) :is(.week-picker,.ts-month-picker){display:flex;align-items:center;gap:0;min-width:0;width:100%;max-width:420px;padding:2px;border:1px solid #aaa3;border-radius:999px;background:linear-gradient(155deg,#ffffffdf,#ffffff60);box-shadow:inset 0 1px 0 #fff,0 2px 8px #3331}
+html:not(.custom-menu-layout) :is(.week-label,.ts-month-label){flex:1;min-width:0;max-width:none;width:auto;min-height:34px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;box-shadow:none;padding:0 4px;text-align:center}
+html:not(.custom-menu-layout) .week-label>.eyebrow{display:none}
+html:not(.custom-menu-layout) .date-control{width:100%;justify-content:center;gap:4px;min-height:34px}
+html:not(.custom-menu-layout) .date-control strong{font-weight:600;line-height:1.3}
+html:not(.custom-menu-layout) :is(.week-picker,.ts-month-picker)>.square{flex:0 0 32px;height:34px;min-height:34px;width:32px;margin:0;box-shadow:none}
+html:not(.custom-menu-layout) .week-shortcuts{align-self:flex-end;margin-left:auto;gap:6px}
+html:not(.custom-menu-layout) .week-shortcuts .button{width:34px;height:34px;min-height:34px;flex:0 0 34px;padding:7px}
+html:not(.custom-menu-layout) .week-shortcuts span{display:none}
+html:not(.custom-menu-layout) :is(.week-transfer-actions,.ts-actions){display:flex;flex:0 0 122px;flex-direction:column;justify-content:center;gap:6px;align-self:stretch}
+html:not(.custom-menu-layout) :is(.week-transfer-actions,.ts-actions)>.button{width:100%;min-height:34px;white-space:normal;padding:5px 7px;margin:0;flex:0 0 auto}
+html:not(.custom-menu-layout) .paint-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px}
+html:not(.custom-menu-layout) .paint-toolbar .palette{flex:1 0 100%;display:flex;flex-wrap:wrap;gap:6px;overflow:visible;padding:0;width:100%}
+html:not(.custom-menu-layout) .palette .shift-chip{flex:0 0 auto;min-height:34px;padding:6px 10px;max-width:100%}
+html:not(.custom-menu-layout) .paint-toolbar>.button{margin:0;min-height:34px;flex:0 1 auto}
+html:not(.custom-menu-layout) .paint-toolbar #undo{margin-left:auto}
+html:not(.custom-menu-layout) .table-hint{padding:4px 8px 6px;min-height:0;justify-content:flex-end}
+html:not(.custom-menu-layout) .table-hint>span,html:not(.custom-menu-layout) .table-hint::before{display:none}
+html:not(.custom-menu-layout) .zoom-controls{gap:6px;flex-wrap:nowrap}
+html:not(.custom-menu-layout) .zoom-controls output{min-width:38px}
+html:not(.custom-menu-layout) .zoom-controls :is(button:first-child,button:nth-of-type(2)){width:34px;padding:0}
+html:not(.custom-menu-layout) .ts-controls{display:flex;flex-wrap:nowrap;gap:8px;padding:6px 8px}
+html:not(.custom-menu-layout) .ts-month-picker{align-self:flex-start;flex:1}
+html:not(.custom-menu-layout) .ts-actions .button{font-size:var(--menu-font)}
+html:not(.custom-menu-layout) .ts-paint{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;align-items:center}
+html:not(.custom-menu-layout) .ts-paint>span{display:none}
+html:not(.custom-menu-layout) .ts-paint .palette{display:flex;flex:0 1 auto;gap:6px;overflow:visible}
+html:not(.custom-menu-layout) .ts-paint :is(#ts-undo,#ts-addemployee){margin:0}
+html:not(.custom-menu-layout) .ts-paint #ts-undo{margin-left:auto}
+html:not(.custom-menu-layout) .ts-view-controls{padding:4px 8px 6px;gap:6px;flex-wrap:wrap}
+html:not(.custom-menu-layout) .ts-view-controls .zoom-controls{margin-left:auto}
+html:not(.custom-menu-layout) :is(.table-bottom,.ts-bottom){padding:6px 8px;min-height:40px;gap:6px}
+.menu-fact{white-space:normal;line-height:1.5;font-size:var(--menu-font);padding:8px 0}
+@media(max-width:650px){
+ html:not(.custom-menu-layout) .topbar{grid-template-columns:1fr auto;padding:6px 8px;gap:6px}
+ html:not(.custom-menu-layout) .view-switch{grid-column:1/-1;grid-row:2;justify-content:stretch}
+ html:not(.custom-menu-layout) .view-switch .button{flex:1;min-width:0;padding:6px}
+ html:not(.custom-menu-layout) :is(.week-transfer-actions,.ts-actions){flex-basis:116px}
+ html:not(.custom-menu-layout) main{padding:4px}
+}
+/* В горизонтали те же компактные группы находятся внутри минибара. */
+html:not(.custom-menu-layout) #mobile-menu>.topbar{display:grid;grid-template-columns:1fr auto;padding:6px 0;gap:6px}
+html:not(.custom-menu-layout) #mobile-menu .view-switch{grid-column:1/-1;grid-row:2;justify-content:stretch}
+html:not(.custom-menu-layout) #mobile-menu .view-switch .button{flex:1;padding:6px}
+html:not(.custom-menu-layout) #mobile-menu :is(.week-toolbar,.ts-controls){padding:6px 0;flex-wrap:nowrap}
+html:not(.custom-menu-layout) #mobile-menu :is(.paint-toolbar,.table-hint,.ts-paint,.ts-view-controls){padding:6px 0}
+html:not(.custom-menu-layout) #mobile-menu :is(.week-transfer-actions,.ts-actions){flex-basis:116px}
+html:not(.custom-menu-layout) #mobile-menu .week-picker{width:100%;flex:0 0 auto}
+html:not(.custom-menu-layout) #mobile-menu .week-shortcuts #copy-week{width:34px;flex:0 0 34px;align-self:auto}
+html:not(.custom-menu-layout) :is(.week-transfer-actions,.ts-actions)>.button{height:40px;min-height:40px;padding:2px 6px}
+html:not(.custom-menu-layout) .ts-navigation{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+html:not(.custom-menu-layout) .ts-navigation .ts-month-picker{flex:0 0 auto;align-self:stretch}
+html:not(.custom-menu-layout) .ts-month-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+html:not(.custom-menu-layout) .paint-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+html:not(.custom-menu-layout) .paint-toolbar .palette{grid-column:1/-1}
+html:not(.custom-menu-layout) .paint-toolbar>.button{width:100%;margin:0!important;padding:5px 4px;white-space:normal}
+html:not(.custom-menu-layout) .ts-paint{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+html:not(.custom-menu-layout) .ts-paint .palette{grid-column:1/-1}
+html:not(.custom-menu-layout) .ts-paint>.button{width:100%;margin:0!important}
+/* Меню данных теперь общее для графика и табеля. */
+.monthly-active #data-menu{display:inline-flex}
+@media(min-width:651px){
+ html:not(.custom-menu-layout) .paint-toolbar{grid-template-columns:repeat(3,minmax(0,160px))}
+ html:not(.custom-menu-layout) .ts-paint{grid-template-columns:repeat(2,minmax(0,180px))}
+}
+/* Минибар остаётся узким и при большой ширине горизонтального экрана. */
+html:not(.custom-menu-layout) #mobile-menu .paint-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}
+html:not(.custom-menu-layout) #mobile-menu .ts-paint{grid-template-columns:repeat(2,minmax(0,1fr))}

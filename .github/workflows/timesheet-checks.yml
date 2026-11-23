@@ -45,3 +45,4 @@ jobs:
           PY
       - run: python tests/browser-monthly.py
       - run: python tests/browser_menu_layout.py
+      - run: python tests/browser_compact_menu.py
