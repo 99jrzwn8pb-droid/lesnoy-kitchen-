@@ -76,6 +76,13 @@ def run(browser,url,mobile):
     page.reload(wait_until='networkidle');assert page.locator('.menu-layout-frame').count()==1
     assert page.locator('.menu-layout-hit').count()==0
     assert page.evaluate('LesnoyMenuLayout.getSettings()')==saved
+    page.locator('#data-menu').click()
+    with page.expect_download() as exported:
+        page.locator('#layout-export').click()
+    assert json.loads(Path(exported.value.path()).read_text())==saved
+    assert read_data(page)==original
+    page.locator('#close-dialog').click()
+
     # Moving originals must preserve palette delegation after every render.
     page.locator('#shift-palette [data-brush="midday"]').click()
     assert page.locator('#shift-palette [data-brush="midday"]').get_attribute('aria-pressed')=='true'

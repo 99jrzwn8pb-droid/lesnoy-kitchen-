@@ -231,6 +231,7 @@ window.addEventListener('resize',()=>{cancelGesture();schedule();});
 document.addEventListener('lesnoy:menu-before-move',teardown);document.addEventListener('lesnoy:menu-moved',()=>refresh(true));
 window.addEventListener('storage',event=>{if(event.key===KEY||event.key===null){try{store=event.newValue?validate(JSON.parse(event.newValue)):{version:1,layouts:{}};if(editing){conflict=true;notice='Настройки изменены в другой вкладке. Нажмите «Не сохранять».';updateBar();return;}refresh(true);}catch(_){}}});
 function toggle(){if(editing){if(save(draft)){editing=false;draft=null;refresh(true);}}else start();}
-window.LesnoyMenuLayout={available:ALLOW_EDIT,start,toggle,isEditing:()=>editing,getSettings:()=>clone(store)};
+function downloadSettings(){const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Лесной-расстановка-меню.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+window.LesnoyMenuLayout={downloadSettings,available:ALLOW_EDIT,start,toggle,isEditing:()=>editing,getSettings:()=>clone(store)};
 refresh();
 })();

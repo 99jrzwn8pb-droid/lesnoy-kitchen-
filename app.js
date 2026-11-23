@@ -437,11 +437,12 @@
   }
   function dataMenu() {
     const roster = cachedRoster();
-    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button>${window.LesnoyMenuLayout?.available?'<button id="layout-settings" class="button">'+(window.LesnoyMenuLayout.isEditing()?'Выключить расстановку':'Включить расстановку')+'</button>':''}</div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели. Файл графика недели заменяет только указанные строки этой недели, включая пустые дни; другие недели и телефоны сохраняются.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
+    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button>${window.LesnoyMenuLayout?'<button id="layout-export" class="button">Скачать расстановку меню</button>':''}${window.LesnoyMenuLayout?.available?'<button id="layout-settings" class="button">'+(window.LesnoyMenuLayout.isEditing()?'Выключить расстановку':'Включить расстановку')+'</button>':''}</div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели. Файл графика недели заменяет только указанные строки этой недели, включая пустые дни; другие недели и телефоны сохраняются.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
       body.querySelector('#json-export').onclick = exportJSON;
       body.querySelector('#json-import').onclick = () => $('import-file').click();
       body.querySelector('#roster-restore')?.addEventListener('click',() => rosterPreview(roster));
       body.querySelector('#help-button').onclick = help;
+      body.querySelector('#layout-export')?.addEventListener('click',()=>window.LesnoyMenuLayout.downloadSettings());
       body.querySelector('#layout-settings')?.addEventListener('click',()=>{closeModal();window.LesnoyMenuLayout.toggle();});
     });
   }
@@ -504,10 +505,10 @@
     if(legacyClipboardCopy(text))toast('Смены открытой недели скопированы в буфер обмена');else manualClipboard(text);
   }
   function pasteRange(event) {
-    const target = event.target.closest('[data-person][data-day],[data-department-cell][data-day]');
-    if (!target || dialog.open) return;
-    event.preventDefault();
-    const text = event.clipboardData?.getData('text/plain');
+    const target=event.target.closest('[data-person][data-day],[data-department-cell][data-day]');
+    if(!target||dialog.open)return;event.preventDefault();pasteText(event.clipboardData?.getData('text/plain'),target);
+  }
+  function pasteText(text,target,wholeOnly=false){
     if (!text || text.length > 100000) { toast('Нет данных для вставки или диапазон слишком большой'); return; }
     let grid = text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map((line) => line.split('\t').map((v) => v.trim()));
     if(grid.every(r=>r.length===14)){
@@ -519,20 +520,35 @@
     const people = department ? [{id:target.dataset.departmentCell}] : orderedEmployees(); const start = department ? 0 : people.findIndex((p) => p.id === target.dataset.person); const day = Number(target.dataset.day);
     const visual=visualWeekRows(),whole=day===0&&grid.length===visual.length&&grid.every(r=>r.length===7)&&((department&&target.dataset.departmentCell===visual[0]?.id)||(!department&&start===0));
     if (!whole && (start + grid.length > people.length || grid.some((r) => day + r.length > 7))) { toast('Диапазон выходит за пределы таблицы. Выберите другую начальную ячейку.'); return; }
+    if(wholeOnly&&!whole){toast('Количество строк не совпадает с графиком. Скопируйте всю неделю для текущего состава сотрудников.');return false;}
     const normalize = s=>{const time=intervalFromLabel(s);return time?time.start+'-'+time.end:s.replace(/[—–−]/g,'-').replace(/\s/g,'').toLocaleLowerCase('ru-RU');};
     const matches = new Map(state.shifts.map((s) => [normalize(s.label),s.id]));
     grid=grid.map(r=>r.map(v=>v.startsWith("'")&&!matches.has(normalize(v))&&matches.has(normalize(v.slice(1)))?v.slice(1):v));
     const unknown = grid.flat().find((s) => s !== '' && s !== '-' && !matches.has(normalize(s)));
     if (unknown !== undefined) { toast(`Неизвестная смена «${unknown.slice(0,24)}». Сначала добавьте её в варианты смен.`); return; }
-    commit((next) => {
+    const applied=commit((next) => {
       if(whole){grid.forEach((r,i)=>{const calendar=visual[i].department?next.departmentWeeks:next.weeks;const week=calendar[next.selectedWeek]||={};week[visual[i].id]=r.map(s=>matches.get(normalize(s))||'');});return;}
       const calendar = department ? next.departmentWeeks : next.weeks;
       const week = calendar[next.selectedWeek] ||= {};
       grid.forEach((r,offset) => { const values = week[people[start+offset].id] ||= Array(7).fill(''); r.forEach((s,i) => { values[day+i] = matches.get(normalize(s)) || ''; }); });
     },'Диапазон из Excel вставлен');
-    focusCell(department ? target.dataset.departmentCell : target.dataset.person,day,true,department);
+    if(applied)focusCell(department ? target.dataset.departmentCell : target.dataset.person,day,true,department);
+    return applied;
   }
 
+  function pasteOpenWeek(){
+    const week=state.selectedWeek;
+    modal('Вставить смены',`<p class="dialog-note">Неделя: ${esc(rangeLabel())}. Заполненные ячейки будут заменены, пустые значения очистят смены. Вставку можно отменить.</p><p class="dialog-note" id="paste-note">Читаем буфер обмена…</p><form id="paste-week-form"><textarea id="paste-week-text" class="clipboard-week-text" aria-label="Смены для вставки" placeholder="Нажмите здесь и выберите «Вставить»"></textarea><p class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="button" data-close>Отмена</button><button type="submit" class="button primary">Вставить смены</button></div></form>`,body=>{
+      const field=body.querySelector('textarea'),note=body.querySelector('#paste-note'),form=body.querySelector('form');
+      const fallback=()=>{if(field.isConnected)note.textContent='Нажмите на поле ниже и выберите «Вставить» в меню телефона.';};
+      if(navigator.clipboard?.readText){try{navigator.clipboard.readText().then(text=>{if(!field.isConnected)return;if(!field.value)field.value=text;note.textContent=text?'Проверьте данные и нажмите «Вставить смены».':'Буфер пуст. Нажмите на поле и вставьте скопированные смены.';},fallback);}catch(_){fallback();}}else fallback();
+      form.onsubmit=event=>{event.preventDefault();if(week!==state.selectedWeek){formError(form,'Неделя изменилась. Закройте окно и повторите вставку.');return;}
+        const target=$('schedule-body').querySelector('[data-department-cell][data-day="0"]');
+        if(!target){formError(form,'Сначала добавьте цеха и сотрудников.');return;}
+        if(pasteText(field.value,target,true))closeModal();else formError(form,$('toast').textContent);
+      };
+    });
+  }
   function revisionPicker(pick) {
     modal('Ревизия','<div class="revision-options"><button class="button" data-revision-period="утро">Ревизия утро</button><button class="button" data-revision-period="ночь">Ревизия ночь</button></div>',body => {
       body.querySelectorAll('[data-revision-period]').forEach(button => { button.onclick = () => {
@@ -609,6 +625,7 @@
   $('today').onclick = () => setWeek(new Date());
   $('week-date').onchange = (event) => { if (event.target.value) setWeek(event.target.value); };
   $('copy-week').onclick = copyOpenWeek;
+  $('paste-week').onclick = pasteOpenWeek;
   $('undo').onclick = undo;
   $('add-employee').onclick = () => employeeEditor();
   $('manage-departments').onclick = departmentList;
@@ -654,6 +671,7 @@
   }
   installShortcutHelp('today','Открыть текущую неделю.');
   installShortcutHelp('copy-week','Скопировать смены открытой недели в буфер обмена.');
+  installShortcutHelp('paste-week','Вставить скопированные смены в открытую неделю.');
   window.LesnoySchedule = { getState: () => C.validateState(state), refresh: () => scheduleViewport?.refresh() };
   render();
   initScheduleViewport();

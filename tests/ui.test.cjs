@@ -1249,3 +1249,24 @@ test('clipboard protects formula-like shift text for Excel and restores the orig
  h.click('#copy-week');const grid=h.clipboard[0].split('\n').map(r=>r.split('\t'));assert.deepEqual(grid[1].slice(0,2),["'=1","'=1"]);
  h.click('#next-week');h.paste(departmentCell('hot',0),h.clipboard[0]);assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'formula');
 });
+
+
+test('paste button reads clipboard without writes, applies to open week and supports undo',async t=>{
+ const h=harness(t),person=h.addEmployee();h.setDate('2026-11-16');h.click(h.cell(person,0));h.click('#copy-week');const source=JSON.stringify(h.read().weeks['2026-11-16']);h.click('#next-week');
+ h.w.navigator.clipboard.readText=async()=>h.clipboard[0];const before=h.shared.get(KEY);h.click('#paste-week');await new Promise(r=>setImmediate(r));assert.equal(h.q('#paste-week-text').value,h.clipboard[0]);assert.equal(h.shared.get(KEY),before);
+ h.submit('#paste-week-form',{});assert.equal(h.q('#editor-dialog').open,false);assert.equal(h.read().weeks['2026-11-23'][person][0],'day');assert.equal(JSON.stringify(h.read().weeks['2026-11-16']),source);
+ h.click('#undo');assert.equal(h.read().weeks['2026-11-23'],undefined);
+});
+
+test('denied clipboard read allows manual paste, cancellation and atomic rejection of invalid text',async t=>{
+ const h=harness(t),person=h.addEmployee();h.click(h.cell(person,0));h.click('#copy-week');h.click('#next-week');const before=h.shared.get(KEY);
+ h.w.navigator.clipboard.readText=async()=>{throw Error('NotAllowedError');};h.click('#paste-week');await new Promise(r=>setImmediate(r));assert.match(h.q('#paste-note').textContent,/меню телефона/);assert.equal(h.q('#paste-week-text').readOnly,false);
+ h.q('#paste-week-text').value='invalid';h.submit('#paste-week-form',{});assert.equal(h.shared.get(KEY),before);assert.ok(h.q('#paste-week-form .form-error').textContent);assert.equal(h.q('#editor-dialog').open,true);
+ h.q('#paste-week-text').value=h.clipboard[0];h.click('#paste-week-form [data-close]');assert.equal(h.shared.get(KEY),before);
+ h.click('#paste-week');await new Promise(r=>setImmediate(r));h.q('#paste-week-text').value=h.clipboard[0];h.submit('#paste-week-form',{});assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'day');
+});
+
+test('late clipboard read preserves manual edits and missing API still permits manual paste',async t=>{
+ const h=harness(t);h.addEmployee();const before=h.shared.get(KEY);let finish;h.w.navigator.clipboard.readText=()=>new Promise(resolve=>finish=resolve);h.click('#paste-week');h.q('#paste-week-text').value='manual';finish('late');await new Promise(r=>setImmediate(r));assert.equal(h.q('#paste-week-text').value,'manual');h.click('#paste-week-form [data-close]');
+ delete h.w.navigator.clipboard.readText;h.click('#paste-week');assert.match(h.q('#paste-note').textContent,/меню телефона/);assert.equal(h.shared.get(KEY),before);
+});

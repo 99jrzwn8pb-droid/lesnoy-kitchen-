@@ -7,20 +7,20 @@
   <meta name="description" content="ЛЕСНОЙ — простой локальный редактор графика кухни. Смены, недели и картинка для команды.">
   <title>ЛЕСНОЙ | График кухни</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=20261123-clipboard">
+  <link rel="stylesheet" href="style.css?v=20261123-paste">
   <link rel="stylesheet" href="glass.css?v=6">
   <link rel="stylesheet" href="menu-layout.css?v=2">
   <script src="core.js?v=12" defer></script>
   <script src="png.js?v=15" defer></script>
   <script src="viewport.js?v=7" defer></script>
-  <script src="app.js?v=22" defer></script>
+  <script src="app.js?v=23" defer></script>
   <script src="vendor/exceljs-4.4.0.min.js" defer></script>
   <script src="timesheet-core.js?v=4" defer></script>
   <script src="timesheet-io.js?v=4" defer></script>
   <script src="timesheet-viewport.js?v=2" defer></script>
   <script src="timesheet.js?v=9" defer></script>
   <script src="mobile.js?v=2" defer></script>
-  <script src="menu-layout.js?v=4" defer></script>
+  <script src="menu-layout.js?v=5" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -51,6 +51,7 @@
         <div class="week-shortcuts">
           <button id="today" class="button subtle small" aria-label="Текущая неделя" title="Текущая неделя"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v12H3ZM6 2v5m8-5v5M3 9h14"/></svg><span>Текущая</span></button>
         <button id="copy-week" class="button" aria-label="Скопировать смены открытой недели в буфер обмена" title="Скопировать смены открытой недели в буфер обмена"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6V3h10v11h-3M3 6h11v11H3Z"/></svg><span>Скопировать смены</span></button>
+          <button id="paste-week" class="button" aria-label="Вставить смены в открытую неделю" title="Вставить смены в открытую неделю"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4H4v14h12V4h-3M7 2h6v4H7ZM10 8v7m-3-3 3 3 3-3"/></svg><span>Вставить смены</span></button>
         </div>
         </div>
         <div class="week-transfer-actions" role="group" aria-label="Перенос недели в табель">

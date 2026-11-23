@@ -142,7 +142,7 @@ def frozen_checks(page):
 def clipboard_week_checks(page):
     before=page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')
     monthly=page.evaluate('localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)')
-    page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.weekCopiedText=text}}})")
+    page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.weekCopiedText=text},readText:async()=>window.weekCopiedText}})")
     page.locator('#copy-week').click()
     page.wait_for_function('Boolean(window.weekCopiedText)')
     text=page.evaluate('window.weekCopiedText')
@@ -150,7 +150,12 @@ def clipboard_week_checks(page):
     assert page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')==before
     page.locator('#next-week').click()
     weeks=page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')
-    page.locator('#schedule-body [data-department-cell][data-day="0"]').first.evaluate("(e,text)=>{const event=new Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:()=>text}});e.dispatchEvent(event)}",text)
+    saved=page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')
+    page.locator('#paste-week').click()
+    page.wait_for_function("document.querySelector('#paste-week-text').value.length>0")
+    assert page.locator('#paste-week-text').input_value()==text
+    assert page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')==saved
+    page.locator('#paste-week-form button[type="submit"]').click()
     assert page.evaluate('Object.keys(LesnoySchedule.getState().departmentWeeks[LesnoySchedule.getState().selectedWeek]).length')>0
     page.locator('#undo').click()
     assert page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')==weeks
