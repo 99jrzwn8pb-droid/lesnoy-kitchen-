@@ -138,7 +138,7 @@ function snap(x,y,w,h,area){
 function alignPair(action){
  const a=items.find(i=>i.key===selected),b=items.find(i=>i.key===pair);if(!a||!b||a.area!==b.area)return;
  const row=model(),p=row.items[a.key],q=row.items[b.key],width=areaSurface(a.area).clientWidth;
- if(action==='size'){q.w=p.w;q.h=p.h;q.scale=p.scale;draw();return;}
+ if(action==='size'){q.w=p.w;q.h=p.h;q.scale=p.scale;fitResized(q);draw();return;}
  const wa=a.box.w,wb=b.box.w,ha=a.box.h,hb=b.box.h,height=areaHeight(row,a.area),cy=Math.max(Math.max(ha,hb)/2,Math.min(height-Math.max(ha,hb)/2,a.box.y+ha/2));
  if(action==='mirror'){
   if(wa+wb+8>width){notice='Уменьшите кнопки: для симметрии не хватает ширины.';updateBar();return;}
@@ -147,7 +147,8 @@ function alignPair(action){
  }else guides={area:a.area,x:null,y:cy};
  p.y=cy-ha/2;q.y=cy-hb/2;notice='';draw();
 }
-function resizeSelected(value){const p=model()?.items[selected];if(!p)return;p.scale=Math.max(.65,Math.min(2.4,value));p.y=Math.min(p.y,Math.max(0,areaHeight(model(),p.area)-p.h*p.scale));draw();}
+function fitResized(p){const row=model(),s=Math.min(p.scale,(areaSurface(p.area).clientWidth-8)/p.w),needed=p.y+p.h*s+8;setAreaHeight(row,p.area,Math.min(p.area==='bottom'?600:1800,Math.max(areaHeight(row,p.area),needed)));p.y=Math.min(p.y,Math.max(0,areaHeight(row,p.area)-p.h*s));}
+function resizeSelected(value){const p=model()?.items[selected];if(!p)return;p.scale=Math.max(.65,Math.min(2.4,value));fitResized(p);draw();}
 function makeBar(){
  bar=document.createElement('div');bar.className='menu-layout-bar';
  if(!editing){bar=null;return;}

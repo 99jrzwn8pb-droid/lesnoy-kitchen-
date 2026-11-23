@@ -63,6 +63,9 @@ def run(browser,url,mobile):
     page.dispatch_event('body','pointermove',{'pointerId':12,'clientX':point['x']+29,'clientY':point['y']+16})
     page.dispatch_event('body','pointerup',{'pointerId':12})
     assert foot.evaluate("e=>e.closest('[data-area]').dataset.area")=='bottom'
+    page.locator('[data-layout-size]').fill('240');page.locator('[data-layout-size]').dispatch_event('input')
+    f=foot.bounding_box();bounds=page.locator('.menu-layout-footer .menu-layout-surface').bounding_box()
+    assert f['y']+f['height']<=bounds['y']+bounds['height']+1, 'Enlarging a footer button grows its own panel instead of clipping it'
     page.locator('[data-layout-done]').focus();page.keyboard.press('Control+z')
     assert read_data(page)==original,'Editor keyboard shortcuts must not undo schedule data'
     page.locator('#data-menu').click()
