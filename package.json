@@ -10,7 +10,8 @@
     "test:ui": "node tests/ui.test.cjs",
     "test:viewport": "node tests/viewport.test.cjs",
     "test:timesheet": "node --test tests/timesheet*.test.cjs",
-    "test:browser": "python tests/browser-monthly.py"
+    "test:browser": "python tests/browser-monthly.py",
+    "test:menu": "python tests/browser_menu_layout.py"
   },
   "devDependencies": {
     "@napi-rs/canvas": "1.0.13",

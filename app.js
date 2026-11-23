@@ -437,11 +437,12 @@
   }
   function dataMenu() {
     const roster = cachedRoster();
-    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button></div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели. Файл графика недели заменяет только указанные строки этой недели, включая пустые дни; другие недели и телефоны сохраняются.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
+    modal('Данные и помощь',`<div class="menu-buttons"><button id="json-export" class="button">↓ Сохранить резервную копию JSON</button><button id="json-import" class="button">↑ Импортировать JSON</button>${roster?'<button id="roster-restore" class="button">↶ Восстановить состав команды</button>':''}<button id="help-button" class="button">Как заполнять график</button>${window.LesnoyMenuLayout?.available?'<button id="layout-settings" class="button">'+(window.LesnoyMenuLayout.isEditing()?'Выключить расстановку':'Включить расстановку')+'</button>':''}</div><p class="dialog-note" style="margin-top:20px">Все сотрудники и недели хранятся только в этом браузере. Между iPhone и Mac нет синхронизации: передавайте JSON вручную.<br><br>Резервная копия заменяет все данные. Файл команды добавляет сотрудников и обновляет телефоны, сохраняя уже заполненные смены и недели. Файл графика недели заменяет только указанные строки этой недели, включая пустые дни; другие недели и телефоны сохраняются.<br><br>При очистке данных браузера график будет удалён. Периодически сохраняйте резервную копию. JSON и PNG с телефонами передавайте только тем, кому они предназначены.</p>`,(body) => {
       body.querySelector('#json-export').onclick = exportJSON;
       body.querySelector('#json-import').onclick = () => $('import-file').click();
       body.querySelector('#roster-restore')?.addEventListener('click',() => rosterPreview(roster));
       body.querySelector('#help-button').onclick = help;
+      body.querySelector('#layout-settings')?.addEventListener('click',()=>{closeModal();window.LesnoyMenuLayout.toggle();});
     });
   }
   function help() {

@@ -34,6 +34,7 @@
   function update() {
     const next = media.matches;
     if (next === landscape) return;
+    document.dispatchEvent(new Event('lesnoy:menu-before-move'));
     landscape = next;
     document.documentElement.classList.toggle('landscape-sheet',next);
     if (next) {
@@ -50,6 +51,7 @@
     }
     toggle.hidden = !next;
     setOpen(false);
+    document.dispatchEvent(new Event('lesnoy:menu-moved'));
     fit();
   }
   toggle.onclick = () => setOpen(menu.hidden);
