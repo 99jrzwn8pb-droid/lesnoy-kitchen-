@@ -26,7 +26,7 @@ function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kit
   let failWrites = false;
   const confirmations = [];
   const openedAt = [];
-  const requests = [];
+  const requests = [], clipboard = [];
   let confirmAnswer = true;
   const storage = {
     getItem(key) { return shared.has(key) ? shared.get(key) : null; },
@@ -37,6 +37,7 @@ function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kit
     removeItem(key) { shared.delete(key); }
   };
   Object.defineProperty(w, 'localStorage', {value: storage});
+  Object.defineProperty(w.navigator,'clipboard',{configurable:true,value:{writeText:async text=>clipboard.push(text)}});
   w.TextDecoder = globalThis.TextDecoder;
   w.fetch = (...args) => { requests.push(['fetch', ...args]); throw new Error('Unexpected external request'); };
   w.XMLHttpRequest.prototype.send = function () { requests.push(['xhr']); throw new Error('Unexpected external request'); };
@@ -104,7 +105,8 @@ function harness(t, shared = new Map(), initialURL = 'https://lesnoy.example/kit
   };
   // Most scenarios start with the user explicitly selecting their paint tool.
   if (chooseInitialShift) w.document.querySelector('#shift-palette [data-brush]:not([data-brush=""])')?.click();
-  return {w, q, click, pointer, submit, read, setDate, addEmployee, cell, importData, shared, confirmations, openedAt, requests,
+  const paste=(selector,text)=>{const e=new w.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(e,'clipboardData',{value:{getData:()=>text}});q(selector).dispatchEvent(e);};
+  return {w, q, click, pointer, submit, read, setDate, addEmployee, cell, importData, paste, clipboard, shared, confirmations, openedAt, requests,
     setFailWrites(value) { failWrites = value; },
     setConfirmAnswer(value) { confirmAnswer = value; }};
 }
@@ -121,9 +123,10 @@ test('add employee, paint in one click, reload, and preserve both weeks without 
   const second = harness(t, h.shared);
   assert.equal(second.read().employees[0].phone, 'ТЕСТ-ТЕЛЕФОН');
   assert.equal(second.q(second.cell(person, 0)).getAttribute('aria-label').split(': ').at(-1), '11:30–23:30');
+  second.click('#copy-week');
   second.click('#next-week');
   assert.equal(second.read().selectedWeek, '2027-01-04');
-  second.click('#copy-week');
+  second.paste('[data-department-cell="hot"][data-day="0"]',second.clipboard[0]);
   assert.equal(second.read().weeks['2027-01-04'][person][0], 'midday');
   second.click('[data-brush="day"]'); second.click(second.cell(person, 0));
   second.click('[data-pick-shift="day"]');
@@ -500,7 +503,7 @@ test('cancel copy/import preserves current data, and non-Monday selection normal
   assert.equal(h.shared.get(KEY), before);
   await h.importData(before);
   assert.equal(h.shared.get(KEY), before);
-  assert.equal(h.confirmations.length, 2);
+  assert.equal(h.confirmations.length, 1);
   h.setDate('2026-11-25');
   assert.equal(h.read().selectedWeek, '2026-11-23');
 });
@@ -1078,8 +1081,8 @@ test('copying a week includes independent department rows even when the source h
   const h=harness(t);h.setDate('2026-11-16');
   h.click(departmentCell('hot',0));h.click('[data-brush="day"]');h.click(departmentCell('cold',5));
   const source=h.read();assert.deepEqual(source.weeks,{});
-  h.click('#next-week');h.click('#copy-week');
-  const copied=h.read();assert.deepEqual(copied.departmentWeeks['2026-11-23'],source.departmentWeeks['2026-11-16']);
+  h.click('#copy-week');h.click('#next-week');h.paste(departmentCell('hot',0),h.clipboard[0]);
+  const copied=h.read();assert.deepEqual(copied.departmentWeeks['2026-11-23'].hot,source.departmentWeeks['2026-11-16'].hot);
   assert.equal(copied.employees.length,0);
   h.click('[data-brush=""]');h.click(departmentCell('hot',0));
   assert.equal(h.read().departmentWeeks['2026-11-23'].hot[0],'');
@@ -1205,7 +1208,7 @@ test('holding calendar or copy shows an accessible explanation and suppresses th
   const h=harness(t),person=h.addEmployee();h.setDate('2026-11-09');h.click(h.cell(person,0));h.setDate('2026-11-16');
   const before=h.shared.get(KEY),button=h.q(selector),confirmations=h.confirmations.length;
   h.pointer('pointerdown',1,10,10,button);await new Promise(r=>setTimeout(r,650));
-  assert.ok(h.q('[role="tooltip"]').textContent.includes(selector==='#today'?'текущую':'предыдущей'));
+  assert.ok(h.q('[role="tooltip"]').textContent.includes(selector==='#today'?'текущую':'буфер'));
   assert.equal(button.getAttribute('aria-describedby'),h.q('[role="tooltip"]').id);
   h.pointer('pointerup',1,10,10,button);button.click();
   assert.equal(h.shared.get(KEY),before);assert.equal(h.confirmations.length,confirmations);
@@ -1217,4 +1220,32 @@ test('dragging or releasing shortcut before the hold threshold never shows a too
  const h=harness(t),button=h.q('#copy-week');h.pointer('pointerdown',1,10,10,button);h.pointer('pointermove',1,40,10,button);
  await new Promise(r=>setTimeout(r,650));assert.equal(h.w.document.querySelector('[role="tooltip"]'),null);
  h.pointer('pointerdown',1,10,10,button);h.pointer('pointerup',1,10,10,button);await new Promise(r=>setTimeout(r,650));assert.equal(h.w.document.querySelector('[role="tooltip"]'),null);
+});
+
+
+test('copy exports the open week as 14 Excel columns including departments, blanks and overnight times without modifying storage',t=>{
+ const h=harness(t),person=h.addEmployee();h.setDate('2026-11-16');h.click(h.cell(person,0));h.click('#next-week');h.click('[data-brush="midday"]');h.click(h.cell(person,4));h.click(departmentCell('hot',1));
+ h.click('#edit-mode');h.click(h.cell(person,4));h.submit('#interval-form',{start:'15:30',end:'03:30'});const night=h.read().weeks['2026-11-23'][person][4];
+ const before=h.shared.get(KEY);h.click('#copy-week');assert.equal(h.shared.get(KEY),before);assert.equal(h.clipboard.length,1);
+ const rows=h.clipboard[0].split('\n').map(r=>r.split('\t'));assert.equal(rows.length,h.read().departments.length+h.read().employees.length);assert.ok(rows.every(r=>r.length===14));
+ assert.deepEqual(rows[0].slice(2,4),['11:30','23:30']);assert.deepEqual(rows[1].slice(8,10),['15:30','03:30']);assert.deepEqual(rows[1].slice(0,2),['','']);
+ h.click('#next-week');h.paste(departmentCell('hot',0),h.clipboard[0]);assert.equal(h.read().weeks['2026-11-30'][person][4],night);assert.equal(h.read().departmentWeeks['2026-11-30'].hot[1],'midday');
+ h.click('#undo');assert.equal(h.read().weeks['2026-11-30'],undefined);
+});
+
+test('denied clipboard write offers manually selectable text without claiming success or changing data',async t=>{
+ const h=harness(t);h.addEmployee();const before=h.shared.get(KEY);h.w.navigator.clipboard.writeText=async()=>{throw Error('NotAllowedError');};
+ h.click('#copy-week');await new Promise(r=>setImmediate(r));assert.ok(h.q('#clipboard-week-text').value.includes('\t'));assert.equal(h.shared.get(KEY),before);assert.equal(h.q('#editor-dialog').open,true);
+ h.click('#clipboard-copy');assert.match(h.q('#clipboard-note').textContent,/Выделите текст/);assert.equal(h.shared.get(KEY),before);
+});
+
+
+test('invalid paired Excel times are rejected atomically',t=>{
+ const h=harness(t),person=h.addEmployee(),before=h.shared.get(KEY);const values=Array(14).fill('');values[0]='10:00';values[1]='25:00';h.paste(h.cell(person,0),values.join('\t'));assert.equal(h.shared.get(KEY),before);assert.match(h.q('#toast').textContent,/Не удалось прочитать/);
+});
+
+test('clipboard protects formula-like shift text for Excel and restores the original label on paste',async t=>{
+ const h=harness(t),person=h.addEmployee(),state=h.read();state.shifts.push({id:'formula',label:'=1',color:'#ffffff'});state.weeks[state.selectedWeek]={[person]:['formula','','','','','','']};await h.importData(JSON.stringify(state));
+ h.click('#copy-week');const grid=h.clipboard[0].split('\n').map(r=>r.split('\t'));assert.deepEqual(grid[1].slice(0,2),["'=1","'=1"]);
+ h.click('#next-week');h.paste(departmentCell('hot',0),h.clipboard[0]);assert.equal(h.read().weeks[h.read().selectedWeek][person][0],'formula');
 });

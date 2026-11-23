@@ -139,6 +139,25 @@ def frozen_checks(page):
     page.locator("#ts-zoom-fit").click()
 
 
+def clipboard_week_checks(page):
+    before=page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')
+    monthly=page.evaluate('localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)')
+    page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.weekCopiedText=text}}})")
+    page.locator('#copy-week').click()
+    page.wait_for_function('Boolean(window.weekCopiedText)')
+    text=page.evaluate('window.weekCopiedText')
+    assert all(len(row.split('\t'))==14 for row in text.split('\n'))
+    assert page.evaluate('localStorage.getItem(LesnoyCore.STORAGE_KEY)')==before
+    page.locator('#next-week').click()
+    weeks=page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')
+    page.locator('#schedule-body [data-department-cell][data-day="0"]').first.evaluate("(e,text)=>{const event=new Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:()=>text}});e.dispatchEvent(event)}",text)
+    assert page.evaluate('Object.keys(LesnoySchedule.getState().departmentWeeks[LesnoySchedule.getState().selectedWeek]).length')>0
+    page.locator('#undo').click()
+    assert page.evaluate('JSON.stringify(LesnoySchedule.getState().weeks)')==weeks
+    page.locator('#prev-week').click()
+    assert page.evaluate('localStorage.getItem(LesnoyTimesheetCore.STORAGE_KEY)')==monthly
+
+
 def weekly_palette_checks(page):
     tool=page.locator('#shift-palette [data-brush="midday"]')
     tool.click()
@@ -222,7 +241,7 @@ def toolbar_layout_checks(page):
 
 def shortcut_help_checks(page):
     before=page.evaluate('JSON.stringify(LesnoySchedule.getState())')
-    for selector,word in [('#today','текущую'),('#copy-week','предыдущей')]:
+    for selector,word in [('#today','текущую'),('#copy-week','буфер')]:
         button=page.locator(selector)
         button.dispatch_event('pointerdown',{'button':0,'isPrimary':True,'pointerId':4,'clientX':10,'clientY':10})
         tip=page.locator('[role=tooltip]')
@@ -463,6 +482,7 @@ def verify_page(browser, base_url, mobile=False):
     assert not errors, f"Browser errors: {errors}"
     shortcut_help_checks(page)
     weekly_palette_checks(page)
+    clipboard_week_checks(page)
     transfer_and_hold_checks(page)
     page.locator("#export-png").click()
     png_quality_checks(page, mobile, weekly=True)

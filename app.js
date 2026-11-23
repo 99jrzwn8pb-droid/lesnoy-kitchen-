@@ -446,7 +446,7 @@
     });
   }
   function help() {
-    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Из прошлой недели» копирует смены. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">Страница закреплена. Сжимайте два пальца для уменьшения графика, разводите для увеличения. Одним пальцем перемещайте лист. Имена, даты и смены масштабируются вместе. Кнопка «Весь график» возвращает общий вид. На Mac также работают трекпад и кнопки «−»/«+». Нажмите телефон, чтобы позвонить.</p>`);
+    modal('Быстрое заполнение',`<p class="dialog-note">1. Выберите неделю календарём или стрелками.<br>2. Выберите смену в панели и нажимайте пустые ячейки.<br>3. Нажмите заполненную ячейку: можно изменить время начала и окончания или удалить смену. Для пустой ячейки сначала включите «Время вручную». Окончание раньше начала означает следующий день.<br>4. Для быстрого удаления выберите «⌫ Удалить смену» в панели и нажимайте ячейки.<br>5. Нажмите имя сотрудника или название цеха, чтобы изменить его.<br>6. Кнопка «Скопировать смены» копирует открытую неделю в буфер обмена. Пятница и суббота выделены жёлтым.<br>7. Для отправки команде нажмите «Скачать PNG».</p><dl class="key-guide"><dt>Стрелки</dt><dd>Переход между ячейками</dd><dt>Enter / пробел</dt><dd>Добавить смену или открыть редактор заполненной ячейки</dd><dt>1–9</dt><dd>Выбрать смену в панели</dd><dt>Delete</dt><dd>Удалить смену из ячейки</dd><dt>F2</dt><dd>Редактор отдельной ячейки</dd><dt>⌘Z / Ctrl+Z</dt><dd>Отменить последнее изменение</dd><dt>⌘V / Ctrl+V</dt><dd>Вставить диапазон смен из Excel начиная с выбранной ячейки. Обозначения должны совпадать с панелью.</dd></dl><p class="dialog-note">Страница закреплена. Сжимайте два пальца для уменьшения графика, разводите для увеличения. Одним пальцем перемещайте лист. Имена, даты и смены масштабируются вместе. Кнопка «Весь график» возвращает общий вид. На Mac также работают трекпад и кнопки «−»/«+». Нажмите телефон, чтобы позвонить.</p>`);
   }
   function pngDialog() {
     modal('График сотрудников',`<img id="png-preview" class="png-preview" alt="Предпросмотр графика кухни" hidden><p class="dialog-note" id="png-status" role="status">Готовим всю таблицу…</p><div class="png-actions"><button id="png-share" class="button primary" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V2m-4 4 4-4 4 4M5 9H3v8h14V9h-2"/></svg><span>Поделиться</span></button><a id="png-save" class="button small" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 12v5h14v-5"/></svg><span>Скачать</span></a></div><p class="dialog-note">На iPhone можно сохранить изображение через меню «Поделиться» или удержанием картинки. Для максимального качества отправляйте в Telegram как файл.</p>`,(body) => {
@@ -477,31 +477,55 @@
       generate();
     });
   }
-  function copyPreviousWeek() {
-    let source,departmentSource;
-    try { const previous = C.previousWeek(state.selectedWeek); source = state.weeks[previous] || {}; departmentSource = state.departmentWeeks[previous] || {}; }
-    catch (_) { toast('Предыдущая неделя за пределами календаря.'); return; }
-    const hasValues = (week) => Object.values(week).some((values) => values.some(Boolean));
-    if (!hasValues(source) && !hasValues(departmentSource)) { toast('В предыдущей неделе пока нет смен'); return; }
-    const filled = hasValues(state.weeks[state.selectedWeek] || {}) || hasValues(state.departmentWeeks[state.selectedWeek] || {});
-    if (filled && !confirm('Заменить смены выбранной недели графиком предыдущей недели? Сотрудники и телефоны сохранятся. Действие можно отменить.')) return;
-    commit((next) => { next.weeks[next.selectedWeek] = clone(source); next.departmentWeeks[next.selectedWeek] = clone(departmentSource); },'Смены скопированы из предыдущей недели');
+  function visualWeekRows(){return state.departments.flatMap(dep=>[{id:dep.id,department:true},...state.employees.filter(p=>p.department===dep.id).map(p=>({id:p.id,department:false}))]);}
+  function clipboardWeekText(){
+    const safe=value=>/^[=+@-]/.test(value)?"'"+value:value;
+    return visualWeekRows().map(item=>row(item.id,item.department).flatMap(shiftId=>{
+      const label=shiftById(shiftId)?.label||'',time=intervalFromLabel(label);
+      return (time?[time.start,time.end]:[label,label]).map(safe);
+    }).join('\t')).join('\n');
+  }
+  function legacyClipboardCopy(text){
+    const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;left:-9999px;top:0;font-size:16px';document.body.append(field);
+    const focus=document.activeElement;let copied=false;
+    try{field.focus();field.select();field.setSelectionRange(0,text.length);copied=!!document.execCommand?.('copy');}catch(_){}finally{field.remove();focus?.focus?.({preventScroll:true});}
+    return copied;
+  }
+  function manualClipboard(text){
+    modal('Скопировать смены',`<p class="dialog-note" id="clipboard-note">Браузер не разрешил копирование. Нажмите «Скопировать» или выделите текст и выберите «Копировать».</p><textarea id="clipboard-week-text" class="clipboard-week-text" readonly aria-label="Смены открытой недели"></textarea><div class="form-actions"><button class="button" data-close>Закрыть</button><button class="button primary" id="clipboard-copy">Скопировать</button></div>`,body=>{
+      const field=body.querySelector('textarea');field.value=text;
+      body.querySelector('#clipboard-copy').onclick=()=>{field.focus();field.select();field.setSelectionRange(0,text.length);let copied=false;try{copied=!!document.execCommand?.('copy');}catch(_){}if(copied){closeModal();toast('Смены открытой недели скопированы в буфер обмена');}else body.querySelector('#clipboard-note').textContent='Выделите текст ниже и выберите «Копировать» в меню браузера.';};
+    });
+  }
+  async function copyOpenWeek(){
+    const text=clipboardWeekText();
+    if(!text){toast('Нет строк для копирования');return;}
+    if(navigator.clipboard?.writeText){try{await navigator.clipboard.writeText(text);toast('Смены открытой недели скопированы в буфер обмена');return;}catch(_){manualClipboard(text);return;}}
+    if(legacyClipboardCopy(text))toast('Смены открытой недели скопированы в буфер обмена');else manualClipboard(text);
   }
   function pasteRange(event) {
     const target = event.target.closest('[data-person][data-day],[data-department-cell][data-day]');
     if (!target || dialog.open) return;
     event.preventDefault();
     const text = event.clipboardData?.getData('text/plain');
-    if (!text || text.length > 40000) { toast('Нет данных для вставки или диапазон слишком большой'); return; }
-    const grid = text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map((line) => line.split('\t').map((v) => v.trim()));
+    if (!text || text.length > 100000) { toast('Нет данных для вставки или диапазон слишком большой'); return; }
+    let grid = text.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').map((line) => line.split('\t').map((v) => v.trim()));
+    if(grid.every(r=>r.length===14)){
+      const decoded=[];
+      for(const r of grid){const values=[];for(let i=0;i<14;i+=2){const a=r[i],b=r[i+1];if(a===b){values.push(a);continue;}if(/^\d{1,2}:\d{2}$/.test(a)&&/^\d{1,2}:\d{2}$/.test(b)&&intervalFromLabel(a+'–'+b)){values.push(a+'–'+b);continue;}toast('Не удалось прочитать начало и окончание смены. Данные не изменены.');return;}decoded.push(values);}
+      grid=decoded;
+    }
     const department = target.hasAttribute('data-department-cell');
     const people = department ? [{id:target.dataset.departmentCell}] : orderedEmployees(); const start = department ? 0 : people.findIndex((p) => p.id === target.dataset.person); const day = Number(target.dataset.day);
-    if (start + grid.length > people.length || grid.some((r) => day + r.length > 7)) { toast('Диапазон выходит за пределы таблицы. Выберите другую начальную ячейку.'); return; }
-    const normalize = (s) => s.replace(/[—–−]/g,'-').replace(/\s/g,'').toLocaleLowerCase('ru-RU');
+    const visual=visualWeekRows(),whole=day===0&&grid.length===visual.length&&grid.every(r=>r.length===7)&&((department&&target.dataset.departmentCell===visual[0]?.id)||(!department&&start===0));
+    if (!whole && (start + grid.length > people.length || grid.some((r) => day + r.length > 7))) { toast('Диапазон выходит за пределы таблицы. Выберите другую начальную ячейку.'); return; }
+    const normalize = s=>{const time=intervalFromLabel(s);return time?time.start+'-'+time.end:s.replace(/[—–−]/g,'-').replace(/\s/g,'').toLocaleLowerCase('ru-RU');};
     const matches = new Map(state.shifts.map((s) => [normalize(s.label),s.id]));
+    grid=grid.map(r=>r.map(v=>v.startsWith("'")&&!matches.has(normalize(v))&&matches.has(normalize(v.slice(1)))?v.slice(1):v));
     const unknown = grid.flat().find((s) => s !== '' && s !== '-' && !matches.has(normalize(s)));
     if (unknown !== undefined) { toast(`Неизвестная смена «${unknown.slice(0,24)}». Сначала добавьте её в варианты смен.`); return; }
     commit((next) => {
+      if(whole){grid.forEach((r,i)=>{const calendar=visual[i].department?next.departmentWeeks:next.weeks;const week=calendar[next.selectedWeek]||={};week[visual[i].id]=r.map(s=>matches.get(normalize(s))||'');});return;}
       const calendar = department ? next.departmentWeeks : next.weeks;
       const week = calendar[next.selectedWeek] ||= {};
       grid.forEach((r,offset) => { const values = week[people[start+offset].id] ||= Array(7).fill(''); r.forEach((s,i) => { values[day+i] = matches.get(normalize(s)) || ''; }); });
@@ -584,7 +608,7 @@
   $('next-week').onclick = () => moveWeek(7);
   $('today').onclick = () => setWeek(new Date());
   $('week-date').onchange = (event) => { if (event.target.value) setWeek(event.target.value); };
-  $('copy-week').onclick = copyPreviousWeek;
+  $('copy-week').onclick = copyOpenWeek;
   $('undo').onclick = undo;
   $('add-employee').onclick = () => employeeEditor();
   $('manage-departments').onclick = departmentList;
@@ -624,12 +648,12 @@
     button.addEventListener('contextmenu',event=>{event.preventDefault();show();hideTimer=setTimeout(hide,2400);});
     button.addEventListener('click',event=>{if(Date.now()<blockedUntil){event.preventDefault();event.stopImmediatePropagation();}else hide();},{capture:true});
     document.addEventListener('click',event=>{if(!button.contains(event.target))hide();});
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'){const visible=!!tip;stopTimer();hide();if(visible){event.preventDefault();event.stopImmediatePropagation();}}});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){const visible=!!tip;stopTimer();hide();if(visible){blockedUntil=0;event.preventDefault();event.stopImmediatePropagation();}}});
     window.addEventListener('resize',()=>{stopTimer();hide();});window.addEventListener('scroll',hide,true);
     document.addEventListener('visibilitychange',()=>{stopTimer();hide();});
   }
   installShortcutHelp('today','Открыть текущую неделю.');
-  installShortcutHelp('copy-week','Скопировать смены предыдущей недели в открытую неделю.');
+  installShortcutHelp('copy-week','Скопировать смены открытой недели в буфер обмена.');
   window.LesnoySchedule = { getState: () => C.validateState(state), refresh: () => scheduleViewport?.refresh() };
   render();
   initScheduleViewport();
