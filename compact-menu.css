@@ -86,3 +86,7 @@ html:not(.custom-menu-layout) .ts-paint>.button{width:100%;margin:0!important}
 /* Минибар остаётся узким и при большой ширине горизонтального экрана. */
 html:not(.custom-menu-layout) #mobile-menu .paint-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}
 html:not(.custom-menu-layout) #mobile-menu .ts-paint{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Дата занимает всё место между стрелками: справа внутри плашки нет хвоста. */
+html.sheet-app:not(.custom-menu-layout) .week-navigation .week-picker{flex:0 0 auto;width:100%;max-width:420px}
+html.sheet-app:not(.custom-menu-layout) .week-navigation .week-label{flex:1 1 0;max-width:none;min-width:0}
+html.sheet-app:not(.custom-menu-layout) #mobile-menu .week-navigation .week-label{flex:1 1 0;max-width:none;min-width:0}

@@ -14,6 +14,9 @@ def geometry(page):
       return {overlaps,outside:list.filter(e=>{const r=e.getBoundingClientRect();return r.left<0||r.right>innerWidth+1}).map(e=>e.id),fonts:[...new Set(list.filter(e=>!e.classList.contains('square')&&e.id!=='data-menu').map(e=>getComputedStyle(e).fontSize))]};
     }''')
     assert result=={'overlaps':[],'outside':[],'fonts':['13px']},result
+    if page.locator('#schedule-panel').is_visible():
+        assert page.evaluate("""() => {const r=s=>document.querySelector(s).getBoundingClientRect(),p=r('.week-picker'),a=r('#prev-week'),b=r('#next-week'),d=r('.week-label');return Math.abs(a.left-p.left-(p.right-b.right))<1&&p.right-b.right<=4&&Math.abs(d.left-a.right-(b.left-d.right))<1;}"""), 'Week arrows must sit symmetrically at both pill edges without empty tail'
+
 
 def run(browser,url):
     c=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.goto(url,wait_until='networkidle')
@@ -25,7 +28,11 @@ def run(browser,url):
     for width in [320,390,590,1440]:
         page.set_viewport_size({'width':width,'height':1000 if width>650 else 844})
         for monthly in [False,True]:
-            page.locator('#ts-open' if monthly else '#ts-back').click();geometry(page)
+            page.locator('#ts-open' if monthly else '#ts-back').click()
+            if not monthly:
+                for date in ['2026-11-23','2026-11-30','2026-12-28']:
+                    page.locator('#week-date').fill(date);page.locator('#week-date').dispatch_event('change');geometry(page)
+            else:geometry(page)
             if monthly:
                 for id in ['ts-png','ts-export','ts-backup','ts-restore','ts-csv','ts-brush-confirmed']:assert not page.locator('#'+id).is_visible()
                 page.locator('#data-menu').click();assert page.locator('[data-month-action=ts-export]').is_visible();assert page.locator('#menu-fact').is_checked();page.locator('#menu-fact').uncheck();assert not page.locator('#ts-brush-confirmed').is_checked();page.locator('#menu-fact').check();page.locator('#close-dialog').click()
